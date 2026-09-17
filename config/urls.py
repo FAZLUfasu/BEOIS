@@ -51,4 +51,8 @@ urlpatterns = [
         "api/hr/",
         include("hr.urls"),
     ),
+    path(
+        "api/finance/",
+        include("finance.urls"),
+    ),
 ]
