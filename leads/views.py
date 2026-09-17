@@ -8,6 +8,29 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.parsers import (
+    FormParser,
+    MultiPartParser,
+)
+
+from .models import LeadImportBatch
+
+from .permissions import (
+    CanAccessLeads,
+    CanManageLeadAssignment,
+    CanImportMarketingLeads,
+)
+
+from .serializers import (
+    LeadImportBatchSerializer,
+    LeadImportBatchDetailSerializer,
+    LeadImportUploadSerializer,
+)
+
+from .import_services import (
+    create_import_preview,
+    confirm_import,
+)
 
 from dashboard.selectors import (
     get_scoped_leads,
@@ -758,4 +781,175 @@ class LeadViewSet(ModelViewSet):
                 queryset,
                 many=True,
             ).data
+        )
+class LeadImportBatchViewSet(
+    ModelViewSet
+):
+    """
+    Marketing-owned Excel / CSV lead ingestion.
+
+    Upload does not immediately create Lead records.
+
+    Step 1:
+        POST /api/leads/imports/preview/
+
+    Step 2:
+        Review validation results.
+
+    Step 3:
+        POST /api/leads/imports/{id}/confirm/
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        CanImportMarketingLeads,
+    ]
+
+    parser_classes = [
+        MultiPartParser,
+        FormParser,
+    ]
+
+    http_method_names = [
+        "get",
+        "post",
+        "head",
+        "options",
+    ]
+
+    queryset = (
+        LeadImportBatch.objects
+        .select_related("uploaded_by")
+        .prefetch_related(
+            "rows",
+            "rows__existing_lead",
+            "rows__imported_lead",
+        )
+        .all()
+    )
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return (
+                LeadImportBatchDetailSerializer
+            )
+
+        return LeadImportBatchSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        user = self.request.user
+
+        if user.is_superuser:
+            return queryset
+
+        # V1 privacy rule:
+        # Marketing staff see their own uploaded batches.
+        # Management roles can see all batches.
+        if (
+            user.has_role("SUPER_ADMIN")
+            or user.has_role("GENERAL_MANAGER")
+            or user.has_role("MANAGER")
+            or user.has_role("DEPARTMENT_HEAD")
+        ):
+            return queryset
+
+        return queryset.filter(
+            uploaded_by=user
+        )
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="preview",
+    )
+    def preview(self, request):
+
+        serializer = LeadImportUploadSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        try:
+            batch = create_import_preview(
+                uploaded_file=(
+                    serializer.validated_data[
+                        "file"
+                    ]
+                ),
+                source=(
+                    serializer.validated_data[
+                        "source"
+                    ]
+                ),
+                campaign=(
+                    serializer.validated_data.get(
+                        "campaign",
+                        "",
+                    )
+                ),
+                default_vertical=(
+                    serializer.validated_data[
+                        "default_vertical"
+                    ]
+                ),
+                default_channel=(
+                    serializer.validated_data[
+                        "default_channel"
+                    ]
+                ),
+                uploaded_by=request.user,
+            )
+
+        except ValueError as exc:
+            return Response(
+                {
+                    "detail": str(exc)
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        return Response(
+            LeadImportBatchDetailSerializer(
+                batch
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="confirm",
+    )
+    def confirm(self, request, pk=None):
+
+        batch = self.get_object()
+
+        try:
+            batch = confirm_import(
+                batch=batch,
+                performed_by=request.user,
+            )
+
+        except ValueError as exc:
+            return Response(
+                {
+                    "detail": str(exc)
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        return Response(
+            LeadImportBatchDetailSerializer(
+                batch
+            ).data,
+            status=status.HTTP_200_OK,
         )

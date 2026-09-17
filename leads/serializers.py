@@ -1,7 +1,13 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import Lead, LeadActivity, CallLog
+from .models import (
+    Lead,
+    LeadActivity,
+    CallLog,
+    LeadImportBatch,
+    LeadImportRow,
+)
 
 
 User = get_user_model()
@@ -380,6 +386,172 @@ class LeadNoteSerializer(serializers.Serializer):
         if not value:
             raise serializers.ValidationError(
                 "Note cannot be empty."
+            )
+
+        return value
+    from .models import (
+    LeadImportBatch,
+    LeadImportRow,
+)
+
+
+class LeadImportRowSerializer(
+    serializers.ModelSerializer
+):
+    existing_lead_id = serializers.CharField(
+        source="existing_lead.lead_id",
+        read_only=True,
+        default=None,
+    )
+
+    imported_lead_id = serializers.CharField(
+        source="imported_lead.lead_id",
+        read_only=True,
+        default=None,
+    )
+
+    class Meta:
+        model = LeadImportRow
+
+        fields = [
+            "id",
+            "row_number",
+            "name",
+            "phone_number",
+            "email",
+            "city",
+            "state",
+            "interested_course",
+            "status",
+            "error_message",
+            "existing_lead_id",
+            "imported_lead_id",
+        ]
+
+
+class LeadImportBatchSerializer(
+    serializers.ModelSerializer
+):
+    uploaded_by = UserMiniSerializer(
+        read_only=True
+    )
+
+    status_display = serializers.CharField(
+        source="get_status_display",
+        read_only=True,
+    )
+
+    vertical_display = serializers.CharField(
+        source="get_default_vertical_display",
+        read_only=True,
+    )
+
+    channel_display = serializers.CharField(
+        source="get_default_channel_display",
+        read_only=True,
+    )
+
+    class Meta:
+        model = LeadImportBatch
+
+        fields = [
+            "id",
+            "file_name",
+            "source",
+            "campaign",
+            "default_vertical",
+            "vertical_display",
+            "default_channel",
+            "channel_display",
+            "total_rows",
+            "valid_rows",
+            "duplicate_rows",
+            "invalid_rows",
+            "imported_rows",
+            "status",
+            "status_display",
+            "uploaded_by",
+            "created_at",
+            "completed_at",
+        ]
+
+
+class LeadImportBatchDetailSerializer(
+    LeadImportBatchSerializer
+):
+    rows = LeadImportRowSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta(
+        LeadImportBatchSerializer.Meta
+    ):
+        fields = (
+            LeadImportBatchSerializer
+            .Meta
+            .fields
+            + ["rows"]
+        )
+
+
+class LeadImportUploadSerializer(
+    serializers.Serializer
+):
+    file = serializers.FileField()
+
+    source = serializers.CharField(
+        max_length=100,
+    )
+
+    campaign = serializers.CharField(
+        max_length=150,
+        required=False,
+        allow_blank=True,
+    )
+
+    default_vertical = (
+        serializers.ChoiceField(
+            choices=Lead.Vertical.choices,
+            default=Lead.Vertical.REGULAR,
+        )
+    )
+
+    default_channel = (
+        serializers.ChoiceField(
+            choices=Lead.Channel.choices,
+            default=Lead.Channel.DIRECT,
+        )
+    )
+
+    def validate_file(self, value):
+        name = value.name.lower()
+
+        if not (
+            name.endswith(".xlsx")
+            or name.endswith(".csv")
+        ):
+            raise serializers.ValidationError(
+                "Upload an .xlsx or .csv file."
+            )
+
+        # 10 MB safety limit.
+        if value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError(
+                "The import file cannot exceed 10 MB."
+            )
+
+        return value
+
+    def validate_default_channel(
+        self,
+        value,
+    ):
+        if value != Lead.Channel.DIRECT:
+            raise serializers.ValidationError(
+                "Marketing Lead Import V1 "
+                "currently supports BEST Direct "
+                "leads only."
             )
 
         return value

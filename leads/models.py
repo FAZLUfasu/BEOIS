@@ -405,3 +405,202 @@ class CallLog(models.Model):
                     "Follow-up date/time is required "
                     "for a callback."
             })
+# ================================================================
+# MARKETING LEAD IMPORT BATCH
+# ================================================================
+
+class LeadImportBatch(models.Model):
+
+    class Status(models.TextChoices):
+        UPLOADED = "UPLOADED", "Uploaded"
+        VALIDATED = "VALIDATED", "Validated"
+        IMPORTING = "IMPORTING", "Importing"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    file_name = models.CharField(
+        max_length=255,
+    )
+
+    source = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    campaign = models.CharField(
+        max_length=150,
+        blank=True,
+    )
+
+    default_vertical = models.CharField(
+        max_length=30,
+        choices=Lead.Vertical.choices,
+        default=Lead.Vertical.REGULAR,
+    )
+
+    default_channel = models.CharField(
+        max_length=20,
+        choices=Lead.Channel.choices,
+        default=Lead.Channel.DIRECT,
+    )
+
+    total_rows = models.PositiveIntegerField(
+        default=0,
+    )
+
+    valid_rows = models.PositiveIntegerField(
+        default=0,
+    )
+
+    duplicate_rows = models.PositiveIntegerField(
+        default=0,
+    )
+
+    invalid_rows = models.PositiveIntegerField(
+        default=0,
+    )
+
+    imported_rows = models.PositiveIntegerField(
+        default=0,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.UPLOADED,
+        db_index=True,
+    )
+
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="lead_import_batches",
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+    )
+
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return (
+            f"{self.file_name} - "
+            f"{self.get_status_display()}"
+        )
+
+
+# ================================================================
+# MARKETING LEAD IMPORT ROW
+# ================================================================
+
+class LeadImportRow(models.Model):
+
+    class Status(models.TextChoices):
+        VALID = "VALID", "Valid"
+        DUPLICATE = "DUPLICATE", "Duplicate"
+        INVALID = "INVALID", "Invalid"
+        IMPORTED = "IMPORTED", "Imported"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    batch = models.ForeignKey(
+        LeadImportBatch,
+        on_delete=models.CASCADE,
+        related_name="rows",
+    )
+
+    row_number = models.PositiveIntegerField()
+
+    name = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    phone_number = models.CharField(
+        max_length=30,
+        blank=True,
+        db_index=True,
+    )
+
+    email = models.EmailField(
+        blank=True,
+    )
+
+    city = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    state = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    interested_course = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        db_index=True,
+    )
+
+    error_message = models.TextField(
+        blank=True,
+    )
+
+    existing_lead = models.ForeignKey(
+        Lead,
+        on_delete=models.SET_NULL,
+        related_name="duplicate_import_rows",
+        null=True,
+        blank=True,
+    )
+
+    imported_lead = models.ForeignKey(
+        Lead,
+        on_delete=models.SET_NULL,
+        related_name="import_rows",
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ["row_number"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "row_number"],
+                name="unique_lead_import_batch_row",
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.batch.file_name} "
+            f"row {self.row_number}"
+        )

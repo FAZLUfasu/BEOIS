@@ -12,11 +12,7 @@ class CanAccessLeads(BasePermission):
         "to access leads."
     )
 
-    def has_permission(
-        self,
-        request,
-        view,
-    ):
+    def has_permission(self, request, view):
         user = request.user
 
         if (
@@ -38,16 +34,13 @@ class CanManageLeadAssignment(BasePermission):
         "to assign leads."
     )
 
-    def has_permission(
-        self,
-        request,
-        view,
-    ):
+    def has_permission(self, request, view):
         user = request.user
 
         if (
             not user
             or not user.is_authenticated
+            or not user.is_active
         ):
             return False
 
@@ -64,3 +57,42 @@ class CanManageLeadAssignment(BasePermission):
             )
 
         return False
+
+
+class CanImportMarketingLeads(BasePermission):
+    """
+    Uploading marketing lead sheets belongs to Marketing.
+
+    Management roles may also perform imports when required.
+    Telecallers can work with imported leads through the normal
+    Lead API but do not automatically receive import permission.
+    """
+
+    message = (
+        "You do not have permission "
+        "to import marketing leads."
+    )
+
+    def has_permission(self, request, view):
+        user = request.user
+
+        if (
+            not user
+            or not user.is_authenticated
+            or not user.is_active
+        ):
+            return False
+
+        if user.is_superuser:
+            return True
+
+        if not hasattr(user, "has_role"):
+            return False
+
+        return (
+            user.has_role("SUPER_ADMIN")
+            or user.has_role("GENERAL_MANAGER")
+            or user.has_role("MARKETING")
+            or user.has_role("MANAGER")
+            or user.has_role("DEPARTMENT_HEAD")
+        )
