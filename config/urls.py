@@ -13,6 +13,10 @@ urlpatterns = [
         admin.site.urls,
     ),
 
+    # --------------------------------------------------------
+    # AUTHENTICATION
+    # --------------------------------------------------------
+
     path(
         "api/auth/token/",
         TokenObtainPairView.as_view(),
@@ -24,6 +28,15 @@ urlpatterns = [
         TokenRefreshView.as_view(),
         name="token_refresh",
     ),
+
+    path(
+        "api/auth/",
+        include("accounts.urls"),
+    ),
+
+    # --------------------------------------------------------
+    # BEOIS APIs
+    # --------------------------------------------------------
 
     path(
         "api/dashboard/",
@@ -39,18 +52,22 @@ urlpatterns = [
         "api/admissions/",
         include("admissions.urls"),
     ),
+
     path(
         "api/students/",
         include("students.urls"),
     ),
+
     path(
         "api/partners/",
         include("partners.urls"),
     ),
+
     path(
         "api/hr/",
         include("hr.urls"),
     ),
+
     path(
         "api/finance/",
         include("finance.urls"),
