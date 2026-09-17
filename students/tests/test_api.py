@@ -382,6 +382,28 @@ class StudentsAPITests(APITestCase):
     # ADMISSION -> STUDENT
     # ============================================================
 
+    def test_direct_student_creation_endpoint_is_not_allowed(self):
+        """
+        Students must only be created through a completed Admission.
+
+        POST /api/students/ must never allow direct Student creation.
+        """
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.post(
+            "/api/students/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
     def test_completed_admission_can_create_student(self):
 
         admission = Admission.objects.create(
