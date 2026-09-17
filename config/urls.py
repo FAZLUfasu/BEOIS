@@ -5,8 +5,13 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+
+
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path(
+        "admin/",
+        admin.site.urls,
+    ),
 
     path(
         "api/auth/token/",
@@ -24,8 +29,14 @@ urlpatterns = [
         "api/dashboard/",
         include("dashboard.urls"),
     ),
-        path(
+
+    path(
         "api/leads/",
         include("leads.urls"),
+    ),
+
+    path(
+        "api/admissions/",
+        include("admissions.urls"),
     ),
 ]
