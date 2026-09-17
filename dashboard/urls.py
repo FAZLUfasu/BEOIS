@@ -10,6 +10,13 @@ from dashboard.views import (
     PartnerDashboardView,
     HRDashboardView,
     FinanceDashboardView,
+    IntelligenceOverviewView,
+    IntelligenceTrendsView,
+    InstitutionIntelligenceView,
+    PartnerIntelligenceView,
+    StaffIntelligenceView,
+    FinancialIntelligenceView,
+    ExceptionIntelligenceView,
 )
 
 
@@ -17,6 +24,10 @@ app_name = "dashboard"
 
 
 urlpatterns = [
+    # ========================================================
+    # EXISTING DASHBOARDS
+    # ========================================================
+
     path(
         "me/",
         MyDashboardAccessView.as_view(),
@@ -69,5 +80,51 @@ urlpatterns = [
         "finance/",
         FinanceDashboardView.as_view(),
         name="finance",
+    ),
+
+    # ========================================================
+    # REPORTING & INTELLIGENCE V2
+    # ========================================================
+
+    path(
+        "intelligence/overview/",
+        IntelligenceOverviewView.as_view(),
+        name="intelligence-overview",
+    ),
+
+    path(
+        "intelligence/trends/",
+        IntelligenceTrendsView.as_view(),
+        name="intelligence-trends",
+    ),
+
+    path(
+        "intelligence/institutions/",
+        InstitutionIntelligenceView.as_view(),
+        name="intelligence-institutions",
+    ),
+
+    path(
+        "intelligence/partners/",
+        PartnerIntelligenceView.as_view(),
+        name="intelligence-partners",
+    ),
+
+    path(
+        "intelligence/staff/",
+        StaffIntelligenceView.as_view(),
+        name="intelligence-staff",
+    ),
+
+    path(
+        "intelligence/finance/",
+        FinancialIntelligenceView.as_view(),
+        name="intelligence-finance",
+    ),
+
+    path(
+        "intelligence/exceptions/",
+        ExceptionIntelligenceView.as_view(),
+        name="intelligence-exceptions",
     ),
 ]
