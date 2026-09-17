@@ -24,4 +24,8 @@ urlpatterns = [
         "api/dashboard/",
         include("dashboard.urls"),
     ),
+        path(
+        "api/leads/",
+        include("leads.urls"),
+    ),
 ]
