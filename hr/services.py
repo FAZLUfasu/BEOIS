@@ -2321,28 +2321,51 @@ def add_payroll_adjustment(
 def _recalculate_payroll_totals(
     payroll,
 ):
+    """
+    Recalculate payroll totals directly from the database.
+
+    IMPORTANT:
+    Do not use payroll.components.all() here because the Payroll
+    instance may have been loaded with prefetch_related("components").
+    In that situation Django can reuse a stale prefetched relation
+    cache after a new PayrollComponent is created.
+
+    Query PayrollComponent directly so every recalculation uses the
+    current database state.
+    """
+
     earnings = MONEY_ZERO
     deductions = MONEY_ZERO
     lop = MONEY_ZERO
     advance = MONEY_ZERO
 
-    for component in payroll.components.all():
+    components = PayrollComponent.objects.filter(
+        payroll_id=payroll.pk
+    )
 
-        if component.component_type == (
-            PayrollComponent.ComponentType.EARNING
+    for component in components:
+
+        if (
+            component.component_type
+            == PayrollComponent.ComponentType.EARNING
         ):
             earnings += component.amount
 
-        else:
+        elif (
+            component.component_type
+            == PayrollComponent.ComponentType.DEDUCTION
+        ):
             deductions += component.amount
 
-        if component.source_type == (
-            PayrollComponent.SourceType.LOP
+        if (
+            component.source_type
+            == PayrollComponent.SourceType.LOP
         ):
             lop += component.amount
 
-        if component.source_type == (
-            PayrollComponent.SourceType.ADVANCE
+        if (
+            component.source_type
+            == PayrollComponent.SourceType.ADVANCE
         ):
             advance += component.amount
 
@@ -2370,10 +2393,19 @@ def _recalculate_payroll_totals(
     )
 
     payroll.full_clean()
-    payroll.save()
+
+    payroll.save(
+        update_fields=[
+            "gross_earnings",
+            "total_deductions",
+            "lop_deduction",
+            "advance_recovery",
+            "net_salary",
+            "updated_at",
+        ]
+    )
 
     return payroll
-
 
 # ================================================================
 # INCENTIVE
