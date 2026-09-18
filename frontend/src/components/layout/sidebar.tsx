@@ -68,7 +68,7 @@ const navigation: NavigationSection[] = [
     items: [
       {
         name: "Marketing",
-        href: "/marketing",
+        href: "/marketing/lead-imports",
         icon: Megaphone,
         roles: [
           ...managementRoles,
