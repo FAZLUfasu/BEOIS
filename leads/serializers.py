@@ -555,3 +555,56 @@ class LeadImportUploadSerializer(
             )
 
         return value
+# ================================================================
+# LEAD DISTRIBUTION
+# ================================================================
+
+
+class BulkLeadAssignmentSerializer(
+    serializers.Serializer
+):
+    lead_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+    )
+
+    user_id = serializers.UUIDField()
+
+    def validate_lead_ids(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError(
+                "Duplicate lead IDs are not allowed."
+            )
+
+        return value
+
+
+class LeadDistributionSerializer(
+    serializers.Serializer
+):
+    lead_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+    )
+
+    user_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+    )
+
+    def validate_lead_ids(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError(
+                "Duplicate lead IDs are not allowed."
+            )
+
+        return value
+
+    def validate_user_ids(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError(
+                "Duplicate employee/user IDs "
+                "are not allowed."
+            )
+
+        return value

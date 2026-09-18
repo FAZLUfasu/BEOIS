@@ -5,62 +5,64 @@ from django.utils import timezone
 
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
 from rest_framework.parsers import (
     FormParser,
     MultiPartParser,
 )
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
-from .models import LeadImportBatch
+from dashboard.selectors import get_scoped_leads
 
-from .permissions import (
-    CanAccessLeads,
-    CanManageLeadAssignment,
-    CanImportMarketingLeads,
+from .distribution_services import (
+    bulk_assign_leads,
+    distribute_leads,
+    get_assignment_workload,
 )
-
-from .serializers import (
-    LeadImportBatchSerializer,
-    LeadImportBatchDetailSerializer,
-    LeadImportUploadSerializer,
-)
-
 from .import_services import (
-    create_import_preview,
     confirm_import,
+    create_import_preview,
 )
-
-from dashboard.selectors import (
-    get_scoped_leads,
+from .models import (
+    Lead,
+    LeadImportBatch,
 )
-
-from .models import Lead
 from .permissions import (
     CanAccessLeads,
+    CanImportMarketingLeads,
     CanManageLeadAssignment,
 )
 from .serializers import (
-    LeadListSerializer,
-    LeadDetailSerializer,
-    LeadCreateSerializer,
-    LeadUpdateSerializer,
-    LeadAssignmentSerializer,
-    RecordCallSerializer,
-    LeadStatusSerializer,
-    LeadNoteSerializer,
+    BulkLeadAssignmentSerializer,
     LeadActivitySerializer,
+    LeadAssignmentSerializer,
+    LeadCreateSerializer,
+    LeadDetailSerializer,
+    LeadDistributionSerializer,
+    LeadImportBatchDetailSerializer,
+    LeadImportBatchSerializer,
+    LeadImportUploadSerializer,
+    LeadListSerializer,
+    LeadNoteSerializer,
+    LeadStatusSerializer,
+    LeadUpdateSerializer,
+    RecordCallSerializer,
 )
 from .services import (
-    assign_lead,
-    record_call,
-    change_lead_status,
     add_lead_note,
+    assign_lead,
+    change_lead_status,
+    record_call,
 )
 
 
 User = get_user_model()
+
+
+# ================================================================
+# LEADS
+# ================================================================
 
 
 class LeadViewSet(ModelViewSet):
@@ -77,16 +79,36 @@ class LeadViewSet(ModelViewSet):
         "options",
     ]
 
+    # ============================================================
+    # QUERYSET / FILTERING
+    # ============================================================
+
     def get_queryset(self):
-        queryset = (
-            get_scoped_leads(
+        assigned_to_filter = (
+            self.request.query_params.get(
+                "assigned_to"
+            )
+        )
+
+        if (
+            assigned_to_filter == "unassigned"
+            and CanManageLeadAssignment().has_permission(
+                self.request,
+                self,
+            )
+        ):
+            queryset = Lead.objects.filter(
+                assigned_to__isnull=True
+            )
+        else:
+            queryset = get_scoped_leads(
                 self.request.user
             )
-            .select_related(
-                "assigned_to",
-                "created_by",
-                "partner",
-            )
+
+        queryset = queryset.select_related(
+            "assigned_to",
+            "created_by",
+            "partner",
         )
 
         search = self.request.query_params.get(
@@ -140,20 +162,23 @@ class LeadViewSet(ModelViewSet):
                 channel=channel
             )
 
-        assigned_to = (
-            self.request.query_params.get(
-                "assigned_to"
-            )
-        )
-
-        if assigned_to:
-            queryset = queryset.filter(
-                assigned_to_id=assigned_to
-            )
+        if assigned_to_filter:
+            if assigned_to_filter == "unassigned":
+                queryset = queryset.filter(
+                    assigned_to__isnull=True
+                )
+            else:
+                queryset = queryset.filter(
+                    assigned_to_id=assigned_to_filter
+                )
 
         return queryset.order_by(
             "-updated_at"
         )
+
+    # ============================================================
+    # SERIALIZER SELECTION
+    # ============================================================
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -172,6 +197,10 @@ class LeadViewSet(ModelViewSet):
             return LeadUpdateSerializer
 
         return LeadDetailSerializer
+
+    # ============================================================
+    # CREATE LEAD
+    # ============================================================
 
     def create(
         self,
@@ -221,6 +250,10 @@ class LeadViewSet(ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    # ============================================================
+    # UPDATE LEAD
+    # ============================================================
+
     def partial_update(
         self,
         request,
@@ -243,6 +276,7 @@ class LeadViewSet(ModelViewSet):
 
         try:
             updated_lead.full_clean()
+
         except ValidationError as exc:
             return Response(
                 {
@@ -266,7 +300,403 @@ class LeadViewSet(ModelViewSet):
             ).data
         )
 
-   
+    # ============================================================
+    # BULK LEAD ASSIGNMENT
+    # POST /api/leads/bulk-assign/
+    # ============================================================
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="bulk-assign",
+        url_name="bulk-assignment",
+        permission_classes=[
+            IsAuthenticated,
+            CanAccessLeads,
+            CanManageLeadAssignment,
+        ],
+    )
+    def bulk_assign(
+        self,
+        request,
+    ):
+        serializer = BulkLeadAssignmentSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        lead_ids = serializer.validated_data[
+            "lead_ids"
+        ]
+
+        user_id = serializer.validated_data[
+            "user_id"
+        ]
+
+        # --------------------------------------------------------
+        # TARGET USER
+        # --------------------------------------------------------
+
+        try:
+            target_user = User.objects.get(
+                id=user_id
+            )
+
+        except User.DoesNotExist:
+            return Response(
+                {
+                    "detail": (
+                        "The selected user "
+                        "does not exist."
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        if not target_user.is_active:
+            return Response(
+                {
+                    "detail": (
+                        "Cannot assign leads to "
+                        "an inactive user."
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        # --------------------------------------------------------
+        # LEAD SCOPE SECURITY
+        # --------------------------------------------------------
+
+        accessible_leads = self.get_queryset()
+
+        unassigned_leads = Lead.objects.filter(
+            assigned_to__isnull=True,
+        )
+
+        leads = list(
+            (
+                accessible_leads
+                | unassigned_leads
+            )
+            .filter(
+                id__in=lead_ids
+            )
+            .distinct()
+            .order_by(
+                "created_at",
+                "id",
+            )
+        )
+
+        if len(leads) != len(lead_ids):
+            return Response(
+                {
+                    "detail": (
+                        "One or more selected leads "
+                        "do not exist or are outside "
+                        "your permitted lead scope."
+                    )
+                },
+                status=(
+                    status.HTTP_403_FORBIDDEN
+                ),
+            )
+
+        # --------------------------------------------------------
+        # ASSIGN
+        # --------------------------------------------------------
+
+        try:
+            assigned_leads = bulk_assign_leads(
+                leads=leads,
+                target_user=target_user,
+                performed_by=request.user,
+            )
+
+        except ValidationError as exc:
+            return Response(
+                {
+                    "detail": (
+                        exc.message_dict
+                        if hasattr(
+                            exc,
+                            "message_dict",
+                        )
+                        else exc.messages
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        return Response(
+            {
+                "message": (
+                    f"{len(assigned_leads)} "
+                    "lead(s) assigned successfully."
+                ),
+                "assigned_count": len(
+                    assigned_leads
+                ),
+                "assigned_to": {
+                    "id": str(
+                        target_user.id
+                    ),
+                    "username": (
+                        target_user.username
+                    ),
+                    "email": (
+                        target_user.email
+                    ),
+                },
+                "leads": LeadListSerializer(
+                    assigned_leads,
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # ============================================================
+    # EQUAL / ROUND-ROBIN DISTRIBUTION
+    # POST /api/leads/distribute/
+    # ============================================================
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="distribute",
+        url_name="lead-distribution",
+        permission_classes=[
+            IsAuthenticated,
+            CanAccessLeads,
+            CanManageLeadAssignment,
+        ],
+    )
+    def distribute(
+        self,
+        request,
+    ):
+        serializer = LeadDistributionSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        lead_ids = serializer.validated_data[
+            "lead_ids"
+        ]
+
+        user_ids = serializer.validated_data[
+            "user_ids"
+        ]
+
+        # --------------------------------------------------------
+        # RESOLVE TARGET USERS
+        # Preserve the order supplied by the frontend.
+        # --------------------------------------------------------
+
+        users_by_id = {
+            str(user.id): user
+            for user in User.objects.filter(
+                id__in=user_ids,
+                is_active=True,
+            )
+        }
+
+        target_users = []
+
+        for user_id in user_ids:
+            target_user = users_by_id.get(
+                str(user_id)
+            )
+
+            if not target_user:
+                return Response(
+                    {
+                        "detail": (
+                            "One or more selected "
+                            "users do not exist "
+                            "or are inactive."
+                        )
+                    },
+                    status=(
+                        status.HTTP_400_BAD_REQUEST
+                    ),
+                )
+
+            target_users.append(
+                target_user
+            )
+
+        # --------------------------------------------------------
+        # LEAD SCOPE SECURITY
+        # --------------------------------------------------------
+
+        accessible_leads = self.get_queryset()
+
+        unassigned_leads = Lead.objects.filter(
+            assigned_to__isnull=True,
+        )
+
+        leads = list(
+            (
+                accessible_leads
+                | unassigned_leads
+            )
+            .filter(
+                id__in=lead_ids
+            )
+            .distinct()
+            .order_by(
+                "created_at",
+                "id",
+            )
+        )
+
+        if len(leads) != len(lead_ids):
+            return Response(
+                {
+                    "detail": (
+                        "One or more selected leads "
+                        "do not exist or are outside "
+                        "your permitted lead scope."
+                    )
+                },
+                status=(
+                    status.HTTP_403_FORBIDDEN
+                ),
+            )
+
+        # --------------------------------------------------------
+        # DISTRIBUTE
+        # --------------------------------------------------------
+
+        try:
+            (
+                distributed_leads,
+                distribution,
+            ) = distribute_leads(
+                leads=leads,
+                target_users=target_users,
+                performed_by=request.user,
+            )
+
+        except ValidationError as exc:
+            return Response(
+                {
+                    "detail": (
+                        exc.message_dict
+                        if hasattr(
+                            exc,
+                            "message_dict",
+                        )
+                        else exc.messages
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        distribution_result = []
+
+        for item in distribution.values():
+            user = item["user"]
+
+            distribution_result.append(
+                {
+                    "user_id": str(
+                        user.id
+                    ),
+                    "username": (
+                        user.username
+                    ),
+                    "email": (
+                        user.email
+                    ),
+                    "assigned_count": (
+                        item[
+                            "assigned_count"
+                        ]
+                    ),
+                }
+            )
+
+        return Response(
+            {
+                "message": (
+                    f"{len(distributed_leads)} "
+                    "lead(s) distributed successfully."
+                ),
+                "distributed_count": len(
+                    distributed_leads
+                ),
+                "employee_count": len(
+                    target_users
+                ),
+                "distribution": (
+                    distribution_result
+                ),
+                "leads": LeadListSerializer(
+                    distributed_leads,
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # ============================================================
+    # STAFF / TELECALLER WORKLOAD
+    # GET /api/leads/workload/
+    # ============================================================
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="workload",
+        url_name="assignment-workload",
+        permission_classes=[
+            IsAuthenticated,
+            CanAccessLeads,
+            CanManageLeadAssignment,
+        ],
+    )
+    def workload(
+        self,
+        request,
+    ):
+        data = get_assignment_workload(
+            performed_by=request.user,
+            lead_queryset=get_scoped_leads(
+                request.user
+            ),
+        )
+
+        return Response(
+            {
+                "count": len(data),
+                "employees": data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # ============================================================
+    # SINGLE LEAD ASSIGNMENT
+    # POST /api/leads/{id}/assign/
+    # ============================================================
+
     @action(
         detail=True,
         methods=["post"],
@@ -301,15 +731,6 @@ class LeadViewSet(ModelViewSet):
         # ========================================================
         # TARGET USER ASSIGNMENT SECURITY
         # ========================================================
-        #
-        # Access to a lead and permission to assign a lead are
-        # separate concerns.
-        #
-        # A manager/HOD must not be able to assign an accessible
-        # lead to an employee outside their organizational scope.
-        #
-        # Superusers bypass this restriction.
-        # ========================================================
 
         if not request.user.is_superuser:
 
@@ -324,15 +745,18 @@ class LeadViewSet(ModelViewSet):
                         "branch__business_unit",
                         "department",
                     )
-                    .get(user=user)
+                    .get(
+                        user=user
+                    )
                 )
 
             except Employee.DoesNotExist:
                 return Response(
                     {
                         "detail": (
-                            "The selected user does not "
-                            "have an employee profile."
+                            "The selected user does "
+                            "not have an employee "
+                            "profile."
                         )
                     },
                     status=(
@@ -357,26 +781,32 @@ class LeadViewSet(ModelViewSet):
 
             for assignment in assignments:
 
-                scope_type = assignment.scope_type
+                scope_type = (
+                    assignment.scope_type
+                )
 
                 # ----------------------------------------------
-                # Entire organization
+                # ORGANIZATION
                 # ----------------------------------------------
 
                 if (
                     scope_type
-                    == UserRole.ScopeType.ORGANIZATION
+                    == UserRole
+                    .ScopeType
+                    .ORGANIZATION
                 ):
                     target_allowed = True
                     break
 
                 # ----------------------------------------------
-                # Business unit
+                # BUSINESS UNIT
                 # ----------------------------------------------
 
                 if (
                     scope_type
-                    == UserRole.ScopeType.BUSINESS_UNIT
+                    == UserRole
+                    .ScopeType
+                    .BUSINESS_UNIT
                     and assignment.business_unit_id
                     and target_employee.branch_id
                     and (
@@ -390,12 +820,14 @@ class LeadViewSet(ModelViewSet):
                     break
 
                 # ----------------------------------------------
-                # Branch
+                # BRANCH
                 # ----------------------------------------------
 
                 if (
                     scope_type
-                    == UserRole.ScopeType.BRANCH
+                    == UserRole
+                    .ScopeType
+                    .BRANCH
                     and assignment.branch_id
                     and (
                         target_employee.branch_id
@@ -406,31 +838,35 @@ class LeadViewSet(ModelViewSet):
                     break
 
                 # ----------------------------------------------
-                # Department
+                # DEPARTMENT
                 # ----------------------------------------------
 
                 if (
                     scope_type
-                    == UserRole.ScopeType.DEPARTMENT
+                    == UserRole
+                    .ScopeType
+                    .DEPARTMENT
                     and assignment.department_id
                     and (
                         target_employee.department_id
                         == assignment.department_id
                     )
                 ):
-                    # If the scoped department itself belongs to
-                    # a branch, the employee must also belong to
-                    # that same branch.
-                    #
-                    # Shared departments have branch=None and
-                    # therefore may contain employees from
-                    # multiple branches.
-
-                    if assignment.department.branch_id:
-
+                    if (
+                        assignment.department
+                        and (
+                            assignment
+                            .department
+                            .branch_id
+                        )
+                    ):
                         if (
                             target_employee.branch_id
-                            != assignment.department.branch_id
+                            != (
+                                assignment
+                                .department
+                                .branch_id
+                            )
                         ):
                             continue
 
@@ -438,12 +874,14 @@ class LeadViewSet(ModelViewSet):
                     break
 
                 # ----------------------------------------------
-                # Team
+                # TEAM
                 # ----------------------------------------------
 
                 if (
                     scope_type
-                    == UserRole.ScopeType.TEAM
+                    == UserRole
+                    .ScopeType
+                    .TEAM
                 ):
                     try:
                         requester_employee = (
@@ -456,7 +894,6 @@ class LeadViewSet(ModelViewSet):
                         requester_employee = None
 
                     if requester_employee:
-
                         if (
                             target_employee.id
                             == requester_employee.id
@@ -470,13 +907,18 @@ class LeadViewSet(ModelViewSet):
                             break
 
                 # ----------------------------------------------
-                # Own
+                # OWN
                 # ----------------------------------------------
 
                 if (
                     scope_type
-                    == UserRole.ScopeType.OWN
-                    and user.id == request.user.id
+                    == UserRole
+                    .ScopeType
+                    .OWN
+                    and (
+                        user.id
+                        == request.user.id
+                    )
                 ):
                     target_allowed = True
                     break
@@ -495,9 +937,9 @@ class LeadViewSet(ModelViewSet):
                     ),
                 )
 
-        # ========================================================
-        # EXISTING BUSINESS SERVICE
-        # ========================================================
+        # --------------------------------------------------------
+        # EXISTING ASSIGNMENT SERVICE
+        # --------------------------------------------------------
 
         try:
             lead = assign_lead(
@@ -509,7 +951,9 @@ class LeadViewSet(ModelViewSet):
         except ValidationError as exc:
             return Response(
                 {
-                    "detail": exc.messages
+                    "detail": (
+                        exc.messages
+                    )
                 },
                 status=(
                     status.HTTP_400_BAD_REQUEST
@@ -522,6 +966,10 @@ class LeadViewSet(ModelViewSet):
             ).data
         )
 
+    # ============================================================
+    # RECORD CALL
+    # ============================================================
+
     @action(
         detail=True,
         methods=["post"],
@@ -531,7 +979,6 @@ class LeadViewSet(ModelViewSet):
             CanAccessLeads,
         ],
     )
-    
     def call(
         self,
         request,
@@ -577,7 +1024,9 @@ class LeadViewSet(ModelViewSet):
         except ValidationError as exc:
             return Response(
                 {
-                    "detail": exc.messages
+                    "detail": (
+                        exc.messages
+                    )
                 },
                 status=(
                     status.HTTP_400_BAD_REQUEST
@@ -598,6 +1047,10 @@ class LeadViewSet(ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    # ============================================================
+    # CHANGE STATUS
+    # ============================================================
 
     @action(
         detail=True,
@@ -639,7 +1092,9 @@ class LeadViewSet(ModelViewSet):
         except ValidationError as exc:
             return Response(
                 {
-                    "detail": exc.messages
+                    "detail": (
+                        exc.messages
+                    )
                 },
                 status=(
                     status.HTTP_400_BAD_REQUEST
@@ -651,6 +1106,10 @@ class LeadViewSet(ModelViewSet):
                 lead
             ).data
         )
+
+    # ============================================================
+    # ADD NOTE
+    # ============================================================
 
     @action(
         detail=True,
@@ -686,7 +1145,9 @@ class LeadViewSet(ModelViewSet):
         except ValidationError as exc:
             return Response(
                 {
-                    "detail": exc.messages
+                    "detail": (
+                        exc.messages
+                    )
                 },
                 status=(
                     status.HTTP_400_BAD_REQUEST
@@ -699,6 +1160,10 @@ class LeadViewSet(ModelViewSet):
             ).data,
             status=status.HTTP_201_CREATED,
         )
+
+    # ============================================================
+    # ACTIVITY TIMELINE
+    # ============================================================
 
     @action(
         detail=True,
@@ -727,6 +1192,10 @@ class LeadViewSet(ModelViewSet):
             ).data
         )
 
+    # ============================================================
+    # FOLLOW-UP QUEUE
+    # ============================================================
+
     @action(
         detail=False,
         methods=["get"],
@@ -753,6 +1222,10 @@ class LeadViewSet(ModelViewSet):
                 many=True,
             ).data
         )
+
+    # ============================================================
+    # OVERDUE QUEUE
+    # ============================================================
 
     @action(
         detail=False,
@@ -782,6 +1255,13 @@ class LeadViewSet(ModelViewSet):
                 many=True,
             ).data
         )
+
+
+# ================================================================
+# MARKETING LEAD IMPORT
+# ================================================================
+
+
 class LeadImportBatchViewSet(
     ModelViewSet
 ):
@@ -819,7 +1299,9 @@ class LeadImportBatchViewSet(
 
     queryset = (
         LeadImportBatch.objects
-        .select_related("uploaded_by")
+        .select_related(
+            "uploaded_by"
+        )
         .prefetch_related(
             "rows",
             "rows__existing_lead",
@@ -844,14 +1326,22 @@ class LeadImportBatchViewSet(
         if user.is_superuser:
             return queryset
 
-        # V1 privacy rule:
         # Marketing staff see their own uploaded batches.
         # Management roles can see all batches.
+
         if (
-            user.has_role("SUPER_ADMIN")
-            or user.has_role("GENERAL_MANAGER")
-            or user.has_role("MANAGER")
-            or user.has_role("DEPARTMENT_HEAD")
+            user.has_role(
+                "SUPER_ADMIN"
+            )
+            or user.has_role(
+                "GENERAL_MANAGER"
+            )
+            or user.has_role(
+                "MANAGER"
+            )
+            or user.has_role(
+                "DEPARTMENT_HEAD"
+            )
         ):
             return queryset
 
@@ -859,13 +1349,19 @@ class LeadImportBatchViewSet(
             uploaded_by=user
         )
 
+    # ============================================================
+    # IMPORT PREVIEW
+    # ============================================================
+
     @action(
         detail=False,
         methods=["post"],
         url_path="preview",
     )
-    def preview(self, request):
-
+    def preview(
+        self,
+        request,
+    ):
         serializer = LeadImportUploadSerializer(
             data=request.data
         )
@@ -908,7 +1404,9 @@ class LeadImportBatchViewSet(
         except ValueError as exc:
             return Response(
                 {
-                    "detail": str(exc)
+                    "detail": str(
+                        exc
+                    )
                 },
                 status=(
                     status.HTTP_400_BAD_REQUEST
@@ -922,13 +1420,20 @@ class LeadImportBatchViewSet(
             status=status.HTTP_201_CREATED,
         )
 
+    # ============================================================
+    # CONFIRM IMPORT
+    # ============================================================
+
     @action(
         detail=True,
         methods=["post"],
         url_path="confirm",
     )
-    def confirm(self, request, pk=None):
-
+    def confirm(
+        self,
+        request,
+        pk=None,
+    ):
         batch = self.get_object()
 
         try:
@@ -940,7 +1445,9 @@ class LeadImportBatchViewSet(
         except ValueError as exc:
             return Response(
                 {
-                    "detail": str(exc)
+                    "detail": str(
+                        exc
+                    )
                 },
                 status=(
                     status.HTTP_400_BAD_REQUEST
