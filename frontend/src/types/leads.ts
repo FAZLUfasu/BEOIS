@@ -182,3 +182,42 @@ export interface ChangeLeadStatusPayload {
 export interface AssignLeadPayload {
   user_id: string;
 }
+/* ============================================================
+   LEAD DISTRIBUTION
+============================================================ */
+
+export interface LeadWorkloadItem {
+  employee_id: string;
+  employee_code: string;
+  user_id: string;
+  name: string;
+  username: string;
+  department: string | null;
+  branch: string | null;
+  active_leads: number;
+}
+
+export interface LeadWorkloadResponse {
+  employees: LeadWorkloadItem[];
+}
+
+export interface BulkAssignLeadsPayload {
+  lead_ids: string[];
+  user_id: string;
+}
+
+export interface BulkAssignLeadsResponse {
+  assigned_count: number;
+  message?: string;
+}
+
+export interface DistributeLeadsPayload {
+  lead_ids: string[];
+  user_ids: string[];
+}
+
+export interface DistributeLeadsResponse {
+  distributed_count: number;
+  employee_count: number;
+  message?: string;
+}

@@ -2,17 +2,21 @@ import { apiRequest } from "@/lib/api/client";
 
 import type {
   AssignLeadPayload,
+  BulkAssignLeadsPayload,
+  BulkAssignLeadsResponse,
   ChangeLeadStatusPayload,
+  DistributeLeadsPayload,
+  DistributeLeadsResponse,
   LeadActivity,
   LeadDetail,
   LeadFilters,
   LeadFormPayload,
   LeadListItem,
   LeadUpdatePayload,
+  LeadWorkloadResponse,
   RecordCallPayload,
   RecordCallResponse,
 } from "@/types/leads";
-
 function buildQuery(filters: LeadFilters = {}) {
   const params = new URLSearchParams();
 
@@ -151,5 +155,50 @@ export function getFollowUps() {
 export function getOverdueLeads() {
   return apiRequest<LeadListItem[]>(
     "/leads/overdue/",
+  );
+}
+/* ============================================================
+   LEAD DISTRIBUTION
+============================================================ */
+
+export function getUnassignedLeads(
+  filters: Omit<
+    LeadFilters,
+    "assigned_to"
+  > = {},
+) {
+  return getLeads({
+    ...filters,
+    assigned_to: "unassigned",
+  });
+}
+
+export function getLeadWorkload() {
+  return apiRequest<LeadWorkloadResponse>(
+    "/leads/workload/",
+  );
+}
+
+export function bulkAssignLeads(
+  payload: BulkAssignLeadsPayload,
+) {
+  return apiRequest<BulkAssignLeadsResponse>(
+    "/leads/bulk-assign/",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function distributeLeads(
+  payload: DistributeLeadsPayload,
+) {
+  return apiRequest<DistributeLeadsResponse>(
+    "/leads/distribute/",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
   );
 }
