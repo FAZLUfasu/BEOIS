@@ -377,7 +377,308 @@ class StudentsAPITests(APITestCase):
             str(self.other_student.id),
             ids,
         )
+        # ============================================================
+    # COMPLETED ADMISSION HANDOFF
+    # ============================================================
 
+    def test_completed_admission_handoff_requires_authentication(
+        self,
+    ):
+        response = self.client.get(
+            "/api/students/completed-admissions/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_completed_admission_without_student_appears_in_handoff(
+        self,
+    ):
+        admission = Admission.objects.create(
+            applicant_name="Ready For Student Handoff",
+            phone_number="9100000190",
+            email="handoff@example.com",
+            institution=self.institution,
+            program=self.program,
+            academic_session="2026-2029",
+            vertical=Admission.Vertical.REGULAR,
+            channel=Admission.Channel.DIRECT,
+            enrollment_number="ENR-HANDOFF-001",
+            university_admission_number="UNI-HANDOFF-001",
+            status=Admission.Status.COMPLETED,
+            assigned_to=self.education_user,
+            created_by=self.superuser,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            "/api/students/completed-admissions/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        admission_ids = {
+            item["admission_id"]
+            for item in response.json()
+        }
+
+        self.assertIn(
+            admission.admission_id,
+            admission_ids,
+        )
+
+        # Existing Admissions that already have Student records
+        # must not return to the handoff queue.
+        self.assertNotIn(
+            self.completed_admission.admission_id,
+            admission_ids,
+        )
+
+        self.assertNotIn(
+            self.second_completed_admission.admission_id,
+            admission_ids,
+        )
+
+        # Incomplete Admissions must never enter this queue.
+        self.assertNotIn(
+            self.incomplete_admission.admission_id,
+            admission_ids,
+        )
+
+    def test_completed_admission_handoff_exposes_expected_fields(
+        self,
+    ):
+        admission = Admission.objects.create(
+            applicant_name="Handoff Field Test",
+            phone_number="9100000191",
+            email="handoff.fields@example.com",
+            institution=self.institution,
+            program=self.program,
+            academic_session="2026-2029",
+            vertical=Admission.Vertical.REGULAR,
+            channel=Admission.Channel.DIRECT,
+            enrollment_number="ENR-HANDOFF-002",
+            status=Admission.Status.COMPLETED,
+            assigned_to=self.education_user,
+            created_by=self.superuser,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            "/api/students/completed-admissions/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        item = next(
+            row
+            for row in response.json()
+            if row["admission_id"]
+            == admission.admission_id
+        )
+
+        expected_fields = {
+            "id",
+            "admission_id",
+            "applicant_name",
+            "phone_number",
+            "email",
+            "institution",
+            "institution_name",
+            "program",
+            "program_name",
+            "academic_session",
+            "vertical",
+            "vertical_display",
+            "channel",
+            "channel_display",
+            "enrollment_number",
+            "university_admission_number",
+            "assigned_to",
+            "completed_at",
+        }
+
+        self.assertTrue(
+            expected_fields.issubset(
+                set(item.keys())
+            )
+        )
+
+        self.assertEqual(
+            item["applicant_name"],
+            admission.applicant_name,
+        )
+
+    def test_completed_admission_handoff_search_and_filters_work(
+        self,
+    ):
+        matching = Admission.objects.create(
+            applicant_name="Credit Transfer Handoff Student",
+            phone_number="9100000192",
+            email="ct.handoff@example.com",
+            institution=self.institution,
+            program=self.program,
+            academic_session="2026-2029",
+            vertical=Admission.Vertical.CREDIT_TRANSFER,
+            channel=Admission.Channel.DIRECT,
+            enrollment_number="ENR-HANDOFF-003",
+            status=Admission.Status.COMPLETED,
+            assigned_to=self.education_user,
+            created_by=self.superuser,
+        )
+
+        Admission.objects.create(
+            applicant_name="Regular Handoff Student",
+            phone_number="9100000193",
+            institution=self.institution,
+            program=self.program,
+            academic_session="2026-2029",
+            vertical=Admission.Vertical.REGULAR,
+            channel=Admission.Channel.DIRECT,
+            enrollment_number="ENR-HANDOFF-004",
+            status=Admission.Status.COMPLETED,
+            assigned_to=self.education_user,
+            created_by=self.superuser,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            (
+                "/api/students/completed-admissions/"
+                "?search=Credit"
+                "&vertical=CREDIT_TRANSFER"
+                "&channel=DIRECT"
+                f"&institution={self.institution.id}"
+                f"&program={self.program.id}"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        admission_ids = {
+            item["admission_id"]
+            for item in response.json()
+        }
+
+        self.assertEqual(
+            admission_ids,
+            {
+                matching.admission_id
+            },
+        )
+
+    def test_admission_disappears_after_student_creation(
+        self,
+    ):
+        admission = Admission.objects.create(
+            applicant_name="Handoff Conversion Student",
+            phone_number="9100000194",
+            institution=self.institution,
+            program=self.program,
+            academic_session="2026-2029",
+            vertical=Admission.Vertical.REGULAR,
+            channel=Admission.Channel.DIRECT,
+            enrollment_number="ENR-HANDOFF-005",
+            status=Admission.Status.COMPLETED,
+            assigned_to=self.education_user,
+            created_by=self.superuser,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        before_response = self.client.get(
+            "/api/students/completed-admissions/"
+        )
+
+        self.assertEqual(
+            before_response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        before_ids = {
+            item["admission_id"]
+            for item in before_response.json()
+        }
+
+        self.assertIn(
+            admission.admission_id,
+            before_ids,
+        )
+
+        create_response = self.client.post(
+            "/api/students/create-from-admission/",
+            {
+                "admission_id": str(
+                    admission.id
+                ),
+                "assigned_coordinator_id": str(
+                    self.education_user.id
+                ),
+                "initialize_processes": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            create_response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        student = Student.objects.get(
+            admission=admission
+        )
+
+        self.assertTrue(
+            student.student_id.startswith(
+                "ST-"
+            )
+        )
+
+        self.assertEqual(
+            student.processes.count(),
+            6,
+        )
+
+        after_response = self.client.get(
+            "/api/students/completed-admissions/"
+        )
+
+        self.assertEqual(
+            after_response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        after_ids = {
+            item["admission_id"]
+            for item in after_response.json()
+        }
+
+        self.assertNotIn(
+            admission.admission_id,
+            after_ids,
+        )
     # ============================================================
     # ADMISSION -> STUDENT
     # ============================================================
@@ -991,7 +1292,247 @@ class StudentsAPITests(APITestCase):
     # ============================================================
     # QUEUES
     # ============================================================
+    def test_process_queue_can_filter_by_process_type(self):
 
+        StudentProcess.objects.create(
+            student=self.student,
+            process_type=StudentProcess.ProcessType.EXAM,
+            title="Queue Exam Test",
+            academic_year=1,
+            semester=1,
+            status=StudentProcess.Status.PENDING,
+            assigned_to=self.education_user,
+        )
+
+        StudentProcess.objects.create(
+            student=self.student,
+            process_type=StudentProcess.ProcessType.PROJECT,
+            title="Queue Project Test",
+            academic_year=1,
+            semester=1,
+            status=StudentProcess.Status.PENDING,
+            assigned_to=self.education_user,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            (
+                "/api/students/process-queue/"
+                "?process_type=EXAM"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        titles = {
+            item["title"]
+            for item in response.json()
+        }
+
+        self.assertIn(
+            "Queue Exam Test",
+            titles,
+        )
+
+        self.assertNotIn(
+            "Queue Project Test",
+            titles,
+        )
+
+    def test_process_queue_can_filter_by_status(self):
+
+        pending_process = StudentProcess.objects.create(
+            student=self.student,
+            process_type=StudentProcess.ProcessType.RESULT,
+            title="Pending Result Queue",
+            academic_year=1,
+            semester=1,
+            status=StudentProcess.Status.PENDING,
+            assigned_to=self.education_user,
+        )
+
+        StudentProcess.objects.create(
+            student=self.student,
+            process_type=StudentProcess.ProcessType.RESULT,
+            title="Completed Result Queue",
+            academic_year=1,
+            semester=1,
+            status=StudentProcess.Status.COMPLETED,
+            assigned_to=self.education_user,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            (
+                "/api/students/process-queue/"
+                "?process_type=RESULT"
+                "&status=PENDING"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        ids = {
+            item["id"]
+            for item in response.json()
+        }
+
+        self.assertIn(
+            str(pending_process.id),
+            ids,
+        )
+    def test_process_queue_respects_student_scope(self):
+
+        StudentProcess.objects.create(
+            student=self.student,
+            process_type=StudentProcess.ProcessType.CERTIFICATE,
+            title="Own Certificate Process",
+            status=StudentProcess.Status.PENDING,
+            assigned_to=self.education_user,
+        )
+
+        StudentProcess.objects.create(
+            student=self.other_student,
+            process_type=StudentProcess.ProcessType.CERTIFICATE,
+            title="Other Certificate Process",
+            status=StudentProcess.Status.PENDING,
+            assigned_to=self.other_user,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            (
+                "/api/students/process-queue/"
+                "?process_type=CERTIFICATE"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        titles = {
+            item["title"]
+            for item in response.json()
+        }
+
+        self.assertIn(
+            "Own Certificate Process",
+            titles,
+        )
+
+        self.assertNotIn(
+            "Other Certificate Process",
+            titles,
+        )
+
+    def test_process_queue_can_filter_overdue(self):
+
+        StudentProcess.objects.create(
+            student=self.student,
+            process_type=StudentProcess.ProcessType.PROJECT,
+            title="Queue Overdue Project",
+            status=StudentProcess.Status.IN_PROGRESS,
+            due_date=(
+                timezone.localdate()
+                - timedelta(days=2)
+            ),
+            assigned_to=self.education_user,
+        )
+
+        StudentProcess.objects.create(
+            student=self.student,
+            process_type=StudentProcess.ProcessType.PROJECT,
+            title="Queue Future Project",
+            status=StudentProcess.Status.IN_PROGRESS,
+            due_date=(
+                timezone.localdate()
+                + timedelta(days=10)
+            ),
+            assigned_to=self.education_user,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            (
+                "/api/students/process-queue/"
+                "?process_type=PROJECT"
+                "&overdue=true"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        titles = {
+            item["title"]
+            for item in response.json()
+        }
+
+        self.assertIn(
+            "Queue Overdue Project",
+            titles,
+        )
+
+        self.assertNotIn(
+            "Queue Future Project",
+            titles,
+        )
+
+    def test_process_queue_rejects_invalid_process_type(self):
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            (
+                "/api/students/process-queue/"
+                "?process_type=INVALID_TYPE"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_process_queue_rejects_invalid_status(self):
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            (
+                "/api/students/process-queue/"
+                "?status=INVALID_STATUS"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
     def test_active_students_queue(self):
         self.authenticate(
             self.education_user

@@ -211,7 +211,58 @@ class StudentDetailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+class CompletedAdmissionHandoffSerializer(
+    serializers.ModelSerializer
+):
+    institution_name = serializers.CharField(
+        source="institution.name",
+        read_only=True,
+    )
+    program_name = serializers.CharField(
+        source="program.name",
+        read_only=True,
+    )
+    vertical_display = serializers.CharField(
+        source="get_vertical_display",
+        read_only=True,
+    )
+    channel_display = serializers.CharField(
+        source="get_channel_display",
+        read_only=True,
+    )
+    assigned_to = SimpleUserSerializer(
+        read_only=True,
+    )
 
+    class Meta:
+        model = Admission
+        fields = [
+            "id",
+            "admission_id",
+            "applicant_name",
+            "phone_number",
+            "alternate_phone",
+            "email",
+            "city",
+            "state",
+            "institution",
+            "institution_name",
+            "program",
+            "program_name",
+            "academic_session",
+            "vertical",
+            "vertical_display",
+            "channel",
+            "channel_display",
+            "enrollment_number",
+            "university_admission_number",
+            "assigned_to",
+            "completed_at",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
 # ================================================================
 # INPUT SERIALIZERS
 # ================================================================

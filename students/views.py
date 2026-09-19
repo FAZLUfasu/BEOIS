@@ -36,6 +36,7 @@ from .serializers import (
     StudentProcessStatusSerializer,
     StudentProgressSerializer,
     VerifyStudentDocumentSerializer,
+    CompletedAdmissionHandoffSerializer,
 )
 from .services import (
     add_student_document,
@@ -247,7 +248,107 @@ class StudentViewSet(ReadOnlyModelViewSet):
             return StudentListSerializer
 
         return StudentDetailSerializer
+        # ============================================================
+    # COMPLETED ADMISSION HANDOFF
+    # ============================================================
 
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="completed-admissions",
+        permission_classes=[
+            IsAuthenticated,
+            CanAccessStudents,
+            CanManageStudents,
+        ],
+    )
+    def completed_admissions(
+        self,
+        request,
+    ):
+        queryset = (
+            Admission.objects
+            .filter(
+                status=Admission.Status.COMPLETED,
+                student__isnull=True,
+            )
+            .select_related(
+                "institution",
+                "program",
+                "assigned_to",
+            )
+        )
+
+        search = request.query_params.get(
+            "search",
+            "",
+        ).strip()
+
+        if search:
+            queryset = queryset.filter(
+                Q(admission_id__icontains=search)
+                | Q(applicant_name__icontains=search)
+                | Q(phone_number__icontains=search)
+                | Q(email__icontains=search)
+                | Q(
+                    enrollment_number__icontains=search
+                )
+            )
+
+        institution = request.query_params.get(
+            "institution",
+            "",
+        ).strip()
+
+        if institution:
+            queryset = queryset.filter(
+                institution_id=institution
+            )
+
+        program = request.query_params.get(
+            "program",
+            "",
+        ).strip()
+
+        if program:
+            queryset = queryset.filter(
+                program_id=program
+            )
+
+        vertical = request.query_params.get(
+            "vertical",
+            "",
+        ).strip()
+
+        if vertical:
+            queryset = queryset.filter(
+                vertical=vertical
+            )
+
+        channel = request.query_params.get(
+            "channel",
+            "",
+        ).strip()
+
+        if channel:
+            queryset = queryset.filter(
+                channel=channel
+            )
+
+        queryset = queryset.order_by(
+            "-completed_at",
+            "-updated_at",
+        )
+
+        return Response(
+            CompletedAdmissionHandoffSerializer(
+                queryset,
+                many=True,
+                context={
+                    "request": request
+                },
+            ).data
+        )
     # ============================================================
     # CREATE FROM COMPLETED ADMISSION
     # ============================================================
@@ -931,7 +1032,6 @@ class StudentViewSet(ReadOnlyModelViewSet):
                 many=True,
             ).data
         )
-
     # ============================================================
     # ACTIVE STUDENTS
     # ============================================================
@@ -941,18 +1041,179 @@ class StudentViewSet(ReadOnlyModelViewSet):
         methods=["get"],
         url_path="active",
     )
-    def active(self, request):
-        queryset = self.get_queryset().filter(
-            status=Student.Status.ACTIVE
+    def active_students(self, request):
+        queryset = (
+            self.get_queryset()
+            .filter(
+                status=Student.Status.ACTIVE,
+            )
         )
 
         return Response(
             StudentListSerializer(
                 queryset,
                 many=True,
+                context={
+                    "request": request,
+                },
             ).data
         )
+    # ============================================================
+    # EDUCATION PROCESS QUEUE
+    # ============================================================
 
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="process-queue",
+    )
+    def process_queue(self, request):
+
+        # Use the raw scoped Student queryset here.
+        # Do not use self.get_queryset(), because that queryset is
+        # designed for Student list/detail retrieval and includes
+        # Student-specific filtering/prefetch behaviour.
+        scoped_students = _scoped_students(
+            request.user
+        )
+
+        queryset = (
+            StudentProcess.objects
+            .filter(
+                student__in=scoped_students,
+            )
+            .select_related(
+                "student",
+                "assigned_to",
+            )
+        )
+
+        process_type_filter = request.query_params.get(
+            "process_type",
+            "",
+        ).strip()
+
+        process_status_filter = request.query_params.get(
+            "status",
+            "",
+        ).strip()
+
+        search_filter = request.query_params.get(
+            "search",
+            "",
+        ).strip()
+
+        overdue_filter = request.query_params.get(
+            "overdue",
+            "",
+        ).strip().lower()
+
+        # --------------------------------------------------------
+        # PROCESS TYPE
+        # --------------------------------------------------------
+
+        if process_type_filter:
+            valid_types = {
+                value
+                for value, label
+                in StudentProcess.ProcessType.choices
+            }
+
+            if process_type_filter not in valid_types:
+                return Response(
+                    {
+                        "detail":
+                            "Invalid process_type."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            queryset = queryset.filter(
+                process_type=process_type_filter
+            )
+
+        # --------------------------------------------------------
+        # STATUS
+        # --------------------------------------------------------
+
+        if process_status_filter:
+            valid_statuses = {
+                value
+                for value, label
+                in StudentProcess.Status.choices
+            }
+
+            if process_status_filter not in valid_statuses:
+                return Response(
+                    {
+                        "detail":
+                            "Invalid status."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            queryset = queryset.filter(
+                status=process_status_filter
+            )
+
+        # --------------------------------------------------------
+        # SEARCH
+        # --------------------------------------------------------
+
+        if search_filter:
+            queryset = queryset.filter(
+                Q(
+                    title__icontains=search_filter
+                )
+                | Q(
+                    reference_number__icontains=search_filter
+                )
+                | Q(
+                    student__student_id__icontains=search_filter
+                )
+                | Q(
+                    student__name__icontains=search_filter
+                )
+                | Q(
+                    student__phone_number__icontains=search_filter
+                )
+                | Q(
+                    student__enrollment_number__icontains=search_filter
+                )
+            )
+
+        # --------------------------------------------------------
+        # OVERDUE
+        # --------------------------------------------------------
+
+        if overdue_filter in {
+            "true",
+            "1",
+            "yes",
+        }:
+            from django.utils import timezone
+
+            queryset = queryset.filter(
+                due_date__lt=timezone.localdate(),
+            ).exclude(
+                status__in=[
+                    StudentProcess.Status.COMPLETED,
+                    StudentProcess.Status.NOT_APPLICABLE,
+                    StudentProcess.Status.CANCELLED,
+                ]
+            )
+
+        queryset = queryset.order_by(
+            "due_date",
+            "created_at",
+        )
+
+        return Response(
+            StudentProcessSerializer(
+                queryset,
+                many=True,
+            ).data
+        )
     # ============================================================
     # PENDING PROCESSES
     # ============================================================
