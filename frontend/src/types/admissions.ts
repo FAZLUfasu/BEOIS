@@ -229,7 +229,51 @@ export type AdmissionQueue =
   | "DOCUMENT_PENDING"
   | "FEE_PENDING"
   | "ENROLLMENT_PENDING";
+export interface QualifiedLeadHandoff {
+  id: string;
+  lead_id: string;
 
+  name: string;
+  phone_number: string;
+  alternate_phone: string;
+  email: string;
+
+  city: string;
+  state: string;
+
+  interested_course: string;
+
+  vertical: AdmissionVertical;
+  vertical_display: string;
+
+  channel: AdmissionChannel;
+  channel_display: string;
+
+  source: string;
+  campaign: string;
+
+  partner: string | null;
+  partner_id: string | null;
+  partner_name: string | null;
+  partner_reference_number: string;
+
+  previous_course: string;
+
+  assigned_to: SimpleUser | null;
+
+  notes: string;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QualifiedLeadFilters {
+  search?: string;
+  vertical?: AdmissionVertical | "";
+  channel?: AdmissionChannel | "";
+  source?: string;
+  campaign?: string;
+}
 export interface ConvertLeadPayload {
   lead_id: string;
   institution_id: string;

@@ -20,6 +20,8 @@ import type {
   Program,
   RecordAdmissionPaymentPayload,
   UniversityApplicationPayload,
+  QualifiedLeadFilters,
+  QualifiedLeadHandoff,
 } from "@/types/admissions";
 
 function buildQuery(
@@ -137,7 +139,23 @@ export function getPrograms(
     `/admissions/programs/${query}`,
   );
 }
+export function getQualifiedLeadHandoffs(
+  filters: QualifiedLeadFilters = {},
+) {
+  const query = buildQuery({
+    search: filters.search,
+    vertical: filters.vertical,
+    channel: filters.channel,
+    source: filters.source,
+    campaign: filters.campaign,
+  });
 
+  return apiRequest<
+    QualifiedLeadHandoff[]
+  >(
+    `/admissions/qualified-leads/${query}`,
+  );
+}
 export function convertLeadToAdmission(
   payload: ConvertLeadPayload,
 ) {

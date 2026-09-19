@@ -460,7 +460,83 @@ class AdmissionDetailSerializer(
         ]
 
         read_only_fields = fields
+# ================================================================
+# QUALIFIED LEAD HANDOFF
+# ================================================================
 
+
+class QualifiedLeadHandoffSerializer(
+    serializers.ModelSerializer
+):
+
+    vertical_display = serializers.CharField(
+        source="get_vertical_display",
+        read_only=True,
+    )
+
+    channel_display = serializers.CharField(
+        source="get_channel_display",
+        read_only=True,
+    )
+
+    assigned_to = SimpleUserSerializer(
+        read_only=True,
+    )
+
+    partner_id = serializers.CharField(
+        source="partner.partner_id",
+        read_only=True,
+        allow_null=True,
+    )
+
+    partner_name = serializers.CharField(
+        source="partner.name",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = Lead
+
+        fields = [
+            "id",
+            "lead_id",
+
+            "name",
+            "phone_number",
+            "alternate_phone",
+            "email",
+
+            "city",
+            "state",
+
+            "interested_course",
+
+            "vertical",
+            "vertical_display",
+
+            "channel",
+            "channel_display",
+
+            "source",
+            "campaign",
+
+            "partner",
+            "partner_id",
+            "partner_name",
+            "partner_reference_number",
+
+            "previous_course",
+
+            "assigned_to",
+
+            "notes",
+
+            "created_at",
+            "updated_at",
+        ]
+
+        read_only_fields = fields
 
 # ================================================================
 # CONVERT QUALIFIED LEAD TO ADMISSION

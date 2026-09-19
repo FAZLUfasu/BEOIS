@@ -33,7 +33,9 @@ import {
 import {
   AdmissionFinancePanel,
 } from "@/components/admissions/admission-finance-panel";
-
+import {
+  QualifiedLeadHandoffPanel,
+} from "@/components/admissions/qualified-lead-handoff-panel";
 import {
   completeAdmission,
   getAdmission,
@@ -679,6 +681,29 @@ export function AdmissionsWorkspace() {
     );
   }
 
+  async function handleLeadConverted(
+  admission: AdmissionDetail,
+) {
+  setSuccess(
+    `Admission ${admission.admission_id} created successfully.`,
+  );
+
+  setQueue("ALL");
+  setSearch("");
+  setStatus("");
+  setVertical("");
+  setInstitution("");
+
+  await loadAdmissions();
+
+  setSelectedAdmissionId(
+    admission.id,
+  );
+
+  setSelectedAdmission(
+    admission,
+  );
+}
   const stats = useMemo(
     () => ({
       total: admissions.length,
@@ -771,7 +796,13 @@ export function AdmissionsWorkspace() {
           {success}
         </div>
       )}
-
+      {canManageAdmission && (
+        <QualifiedLeadHandoffPanel
+          onConverted={
+            handleLeadConverted
+          }
+        />
+      )}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Current View"

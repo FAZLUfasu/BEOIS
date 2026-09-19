@@ -36,6 +36,7 @@ from .serializers import (
     AdmissionListSerializer,
     AdmissionDetailSerializer,
     AdmissionDocumentSerializer,
+    QualifiedLeadHandoffSerializer,
     AdmissionFeeSerializer,
     AdmissionPaymentSerializer,
     AdmissionActivitySerializer,
@@ -52,6 +53,7 @@ from .serializers import (
     UniversityApplicationSerializer,
     EnrollmentSerializer,
     CompleteAdmissionSerializer,
+    
 )
 from .services import (
     create_admission_from_lead,
@@ -552,7 +554,161 @@ class AdmissionViewSet(
             return AdmissionListSerializer
 
         return AdmissionDetailSerializer
+    # ============================================================
+    # QUALIFIED LEAD HANDOFF QUEUE
+    # ============================================================
 
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="qualified-leads",
+        permission_classes=[
+            IsAuthenticated,
+            CanAccessAdmissions,
+            CanManageAdmissions,
+        ],
+    )
+    def qualified_leads(
+        self,
+        request,
+    ):
+        """
+        Secure Admissions handoff queue.
+
+        This endpoint intentionally does not use the normal
+        Leads API. It exposes only QUALIFIED leads that have
+        not yet been converted into an Admission.
+        """
+
+        queryset = (
+            Lead.objects
+            .filter(
+                status=Lead.Status.QUALIFIED,
+                admission__isnull=True,
+            )
+            .select_related(
+                "assigned_to",
+                "partner",
+            )
+        )
+
+        # --------------------------------------------------------
+        # SEARCH
+        # --------------------------------------------------------
+
+        search = (
+            request.query_params
+            .get(
+                "search",
+                "",
+            )
+            .strip()
+        )
+
+        if search:
+            queryset = queryset.filter(
+                Q(
+                    lead_id__icontains=search
+                )
+                | Q(
+                    name__icontains=search
+                )
+                | Q(
+                    phone_number__icontains=search
+                )
+                | Q(
+                    email__icontains=search
+                )
+                | Q(
+                    interested_course__icontains=search
+                )
+            )
+
+        # --------------------------------------------------------
+        # VERTICAL
+        # --------------------------------------------------------
+
+        vertical = (
+            request.query_params
+            .get(
+                "vertical",
+                "",
+            )
+            .strip()
+        )
+
+        if vertical:
+            queryset = queryset.filter(
+                vertical=vertical
+            )
+
+        # --------------------------------------------------------
+        # CHANNEL
+        # --------------------------------------------------------
+
+        channel = (
+            request.query_params
+            .get(
+                "channel",
+                "",
+            )
+            .strip()
+        )
+
+        if channel:
+            queryset = queryset.filter(
+                channel=channel
+            )
+
+        # --------------------------------------------------------
+        # SOURCE
+        # --------------------------------------------------------
+
+        source = (
+            request.query_params
+            .get(
+                "source",
+                "",
+            )
+            .strip()
+        )
+
+        if source:
+            queryset = queryset.filter(
+                source__iexact=source
+            )
+
+        # --------------------------------------------------------
+        # CAMPAIGN
+        # --------------------------------------------------------
+
+        campaign = (
+            request.query_params
+            .get(
+                "campaign",
+                "",
+            )
+            .strip()
+        )
+
+        if campaign:
+            queryset = queryset.filter(
+                campaign__iexact=campaign
+            )
+
+        queryset = queryset.order_by(
+            "-updated_at"
+        )
+
+        return Response(
+            QualifiedLeadHandoffSerializer(
+                queryset,
+                many=True,
+                context={
+                    "request": request,
+                },
+            ).data
+        )
     # ============================================================
     # CONVERT QUALIFIED LEAD
     # ============================================================

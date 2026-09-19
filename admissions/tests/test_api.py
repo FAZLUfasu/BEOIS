@@ -489,7 +489,240 @@ class AdmissionsAPITests(APITestCase):
             self.other_admission.admission_id,
             ids,
         )
+        # ============================================================
+    # QUALIFIED LEAD HANDOFF QUEUE
+    # ============================================================
 
+    def test_qualified_lead_handoff_requires_authentication(self):
+
+        response = self.client.get(
+            "/api/admissions/qualified-leads/"
+        )
+
+        self.assertIn(
+            response.status_code,
+            [401, 403],
+        )
+
+    def test_admission_user_can_view_qualified_lead_handoff(self):
+
+        self.authenticate(
+            self.admission_user
+        )
+
+        response = self.client.get(
+            "/api/admissions/qualified-leads/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        data = response.json()
+
+        lead_ids = {
+            item["lead_id"]
+            for item in data
+        }
+
+        self.assertIn(
+            self.qualified_lead.lead_id,
+            lead_ids,
+        )
+
+        self.assertNotIn(
+            self.unqualified_lead.lead_id,
+            lead_ids,
+        )
+
+    def test_qualified_lead_handoff_exposes_expected_fields(self):
+
+        self.authenticate(
+            self.admission_user
+        )
+
+        response = self.client.get(
+            "/api/admissions/qualified-leads/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        item = next(
+            row
+            for row in response.json()
+            if row["lead_id"]
+            == self.qualified_lead.lead_id
+        )
+
+        expected_fields = {
+            "id",
+            "lead_id",
+            "name",
+            "phone_number",
+            "email",
+            "interested_course",
+            "vertical",
+            "vertical_display",
+            "channel",
+            "channel_display",
+            "source",
+            "campaign",
+            "assigned_to",
+            "created_at",
+            "updated_at",
+        }
+
+        self.assertTrue(
+            expected_fields.issubset(
+                set(item.keys())
+            )
+        )
+
+        self.assertEqual(
+            item["name"],
+            self.qualified_lead.name,
+        )
+
+        self.assertEqual(
+            item["phone_number"],
+            self.qualified_lead.phone_number,
+        )
+
+    def test_qualified_lead_handoff_search_and_filters_work(self):
+
+        other_lead = Lead.objects.create(
+            name="Credit Transfer Handoff",
+            phone_number="9100000099",
+            email="cthandoff@test.local",
+            city="Kochi",
+            state="Kerala",
+            vertical=Lead.Vertical.CREDIT_TRANSFER,
+            channel=Lead.Channel.DIRECT,
+            source="Website",
+            campaign="September CT Campaign",
+            interested_course="BBA",
+            status=Lead.Status.QUALIFIED,
+            created_by=self.superuser,
+        )
+
+        self.authenticate(
+            self.admission_user
+        )
+
+        response = self.client.get(
+            (
+                "/api/admissions/"
+                "qualified-leads/"
+                "?search=Credit"
+                "&vertical=CREDIT_TRANSFER"
+                "&channel=DIRECT"
+                "&source=Website"
+                "&campaign=September%20CT%20Campaign"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        lead_ids = {
+            item["lead_id"]
+            for item in response.json()
+        }
+
+        self.assertIn(
+            other_lead.lead_id,
+            lead_ids,
+        )
+
+        self.assertNotIn(
+            self.qualified_lead.lead_id,
+            lead_ids,
+        )
+
+    def test_converted_lead_disappears_from_handoff_queue(self):
+
+        self.authenticate(
+            self.admission_user
+        )
+
+        before_response = self.client.get(
+            "/api/admissions/qualified-leads/"
+        )
+
+        self.assertEqual(
+            before_response.status_code,
+            200,
+        )
+
+        before_ids = {
+            item["lead_id"]
+            for item in before_response.json()
+        }
+
+        self.assertIn(
+            self.qualified_lead.lead_id,
+            before_ids,
+        )
+
+        convert_response = self.client.post(
+            "/api/admissions/convert-from-lead/",
+            {
+                "lead_id": str(
+                    self.qualified_lead.id
+                ),
+                "institution_id": str(
+                    self.institution.id
+                ),
+                "program_id": str(
+                    self.program.id
+                ),
+                "academic_session": "2026-2027",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            convert_response.status_code,
+            201,
+        )
+
+        after_response = self.client.get(
+            "/api/admissions/qualified-leads/"
+        )
+
+        self.assertEqual(
+            after_response.status_code,
+            200,
+        )
+
+        after_ids = {
+            item["lead_id"]
+            for item in after_response.json()
+        }
+
+        self.assertNotIn(
+            self.qualified_lead.lead_id,
+            after_ids,
+        )
+
+        self.qualified_lead.refresh_from_db()
+
+        self.assertEqual(
+            self.qualified_lead.status,
+            Lead.Status.CONVERTED,
+        )
+
+        self.assertTrue(
+            Admission.objects.filter(
+                lead=self.qualified_lead
+            ).exists()
+        )
     # ============================================================
     # LEAD -> ADMISSION
     # ============================================================
