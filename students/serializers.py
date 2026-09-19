@@ -16,13 +16,32 @@ class SimpleUserSerializer(serializers.Serializer):
 
 
 class StudentProcessSerializer(serializers.ModelSerializer):
-    assigned_to = SimpleUserSerializer(read_only=True)
     process_type_display = serializers.CharField(
         source="get_process_type_display",
         read_only=True,
     )
+
     status_display = serializers.CharField(
         source="get_status_display",
+        read_only=True,
+    )
+
+    assigned_to = SimpleUserSerializer(
+        read_only=True,
+    )
+
+    student = serializers.UUIDField(
+        source="student.id",
+        read_only=True,
+    )
+
+    student_id = serializers.CharField(
+        source="student.student_id",
+        read_only=True,
+    )
+
+    student_name = serializers.CharField(
+        source="student.name",
         read_only=True,
     )
 
@@ -30,23 +49,42 @@ class StudentProcessSerializer(serializers.ModelSerializer):
         model = StudentProcess
         fields = [
             "id",
+
+            "student",
+            "student_id",
+            "student_name",
+
             "process_type",
             "process_type_display",
+
             "title",
+
             "academic_year",
             "semester",
+
             "status",
             "status_display",
+
             "due_date",
             "submitted_at",
             "completed_at",
+
             "assigned_to",
+
             "reference_number",
             "notes",
+
             "created_at",
             "updated_at",
         ]
 
+        read_only_fields = [
+            "id",
+            "submitted_at",
+            "completed_at",
+            "created_at",
+            "updated_at",
+        ]
 
 class StudentDocumentSerializer(serializers.ModelSerializer):
     verified_by = SimpleUserSerializer(read_only=True)

@@ -1630,3 +1630,47 @@ class StudentsAPITests(APITestCase):
             "Overdue Project",
             titles,
         )
+    def test_process_queue_exposes_student_identity(self):
+        process = StudentProcess.objects.create(
+            student=self.student,
+            process_type=StudentProcess.ProcessType.EXAM,
+            title="Student Identity Queue Test",
+            academic_year=1,
+            semester=1,
+            status=StudentProcess.Status.PENDING,
+            assigned_to=self.education_user,
+        )
+
+        self.authenticate(
+            self.education_user
+        )
+
+        response = self.client.get(
+            "/api/students/process-queue/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        item = next(
+            row
+            for row in response.json()
+            if str(row["id"]) == str(process.id)
+        )
+
+        self.assertEqual(
+            str(item["student"]),
+            str(self.student.id),
+        )
+
+        self.assertEqual(
+            item["student_id"],
+            self.student.student_id,
+        )
+
+        self.assertEqual(
+            item["student_name"],
+            self.student.name,
+        )

@@ -17,7 +17,6 @@ import {
   Settings,
   ShieldCheck,
   UserRoundCog,
-  UsersRound,
   X,
 } from "lucide-react";
 import type {
@@ -101,20 +100,8 @@ const navigation: NavigationSection[] = [
         ],
       },
       {
-        name: "Students",
-        href: "/students",
-        icon: UsersRound,
-        roles: [
-          ...managementRoles,
-          "ADMISSION",
-          "EDUCATION_PROCESS",
-          "MANAGER",
-          "DEPARTMENT_HEAD",
-        ],
-      },
-      {
         name: "Education Process",
-        href: "/education",
+        href: "/students",
         icon: BookOpenCheck,
         roles: [
           ...managementRoles,
