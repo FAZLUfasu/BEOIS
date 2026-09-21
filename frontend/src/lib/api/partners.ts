@@ -2,7 +2,11 @@ import { apiRequest } from "@/lib/api/client";
 
 import type {
   AddPartnerNotePayload,
+  CommissionRule,
   CommissionTransaction,
+  CreateCommissionRulePayload,
+  CreateCommissionTransactionPayload,
+  MarkCommissionPaidPayload,
   CreatePartnerCasePayload,
   CreatePartnerIssuePayload,
   CreatePartnerPayload,
@@ -391,6 +395,91 @@ export async function changePartnerIssueStatus(
 ): Promise<PartnerIssue> {
   return apiRequest<PartnerIssue>(
     `/partners/${partnerId}/issues/${issueId}/status/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+// ============================================================
+// PARTNER COMMISSIONS
+// ============================================================
+
+export async function getPartnerCommissionRules(
+  partnerId: string,
+): Promise<CommissionRule[]> {
+  return apiRequest<CommissionRule[]>(
+    `/partners/${partnerId}/commission-rules/`,
+  );
+}
+
+export async function createPartnerCommissionRule(
+  partnerId: string,
+  payload: CreateCommissionRulePayload,
+): Promise<CommissionRule> {
+  return apiRequest<CommissionRule>(
+    `/partners/${partnerId}/commission-rules/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function getPartnerCommissions(
+  partnerId: string,
+): Promise<CommissionTransaction[]> {
+  return apiRequest<CommissionTransaction[]>(
+    `/partners/${partnerId}/commissions/`,
+  );
+}
+
+export async function createPartnerCommission(
+  partnerId: string,
+  payload: CreateCommissionTransactionPayload,
+): Promise<CommissionTransaction> {
+  return apiRequest<CommissionTransaction>(
+    `/partners/${partnerId}/commissions/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function approvePartnerCommission(
+  partnerId: string,
+  commissionId: string,
+  notes = "",
+): Promise<CommissionTransaction> {
+  return apiRequest<CommissionTransaction>(
+    `/partners/${partnerId}/commissions/${commissionId}/approve/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+    },
+  );
+}
+
+export async function markPartnerCommissionPayable(
+  partnerId: string,
+  commissionId: string,
+): Promise<CommissionTransaction> {
+  return apiRequest<CommissionTransaction>(
+    `/partners/${partnerId}/commissions/${commissionId}/payable/`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function markPartnerCommissionPaid(
+  partnerId: string,
+  commissionId: string,
+  payload: MarkCommissionPaidPayload,
+): Promise<CommissionTransaction> {
+  return apiRequest<CommissionTransaction>(
+    `/partners/${partnerId}/commissions/${commissionId}/paid/`,
     {
       method: "POST",
       body: JSON.stringify(payload),

@@ -46,6 +46,7 @@ import type {
   PartnerDocumentType,
   PartnerStatus,
 } from "@/types/partners";
+import { PartnerCommissionsPanel } from "@/components/partners/partner-commissions";
 import {
   PartnerProgramAccessPanel,
 } from "@/components/partners/partner-program-access";
@@ -70,7 +71,8 @@ type DetailTab =
   | "DOCUMENTS"
   | "PROGRAM_ACCESS"
   | "CASES"
-  | "ISSUES";
+  | "ISSUES"
+  | "COMMISSIONS";
 
 const STATUS_OPTIONS: Array<{
   value: PartnerStatus;
@@ -661,7 +663,17 @@ export function PartnerDetailDrawer({
             >
               Cases
             </TabButton>
-
+            <button
+                type="button"
+                onClick={() => setTab("COMMISSIONS")}
+                className={
+                  tab === "COMMISSIONS"
+                    ? "rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                    : "rounded-xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                }
+              >
+                Commissions
+              </button>
             <TabButton
               active={tab === "ISSUES"}
               onClick={() =>
@@ -1289,6 +1301,15 @@ export function PartnerDetailDrawer({
               {partner &&
               tab === "ISSUES" ? (
                 <PartnerIssuesPanel
+                  partnerId={partner.id}
+                  onChanged={() => {
+                    void loadPartner(true);
+                    onChanged?.();
+                  }}
+                />
+              ) : null}
+              {partner && tab === "COMMISSIONS" ? (
+                <PartnerCommissionsPanel
                   partnerId={partner.id}
                   onChanged={() => {
                     void loadPartner(true);
