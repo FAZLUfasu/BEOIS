@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
+from django.utils import timezone
 
 from accounts.models import Role, UserRole
 from admissions.models import Admission, Institution, Program
@@ -1340,4 +1341,398 @@ class PartnerAPITests(APITestCase):
         self.assertIn(
             self.issue.subject,
             subjects,
+        )
+        # ============================================================
+    # PROGRAM ACCESS LIFECYCLE
+    # ============================================================
+
+    def test_program_access_can_be_deactivated(self):
+        self.authenticate(self.partner_user)
+
+        response = self.client.post(
+            (
+                f"/api/partners/{self.partner.id}/"
+                f"program-access/{self.program_access.id}/status/"
+            ),
+            {
+                "is_active": False,
+                "notes": "Temporarily disabled.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.program_access.refresh_from_db()
+
+        self.assertFalse(
+            self.program_access.is_active
+        )
+
+        self.assertEqual(
+            self.program_access.notes,
+            "Temporarily disabled.",
+        )
+
+        self.assertTrue(
+            self.partner.activities.filter(
+                activity_type=(
+                    PartnerActivity.ActivityType.PROGRAM_ACCESS
+                ),
+                description__icontains="deactivated",
+            ).exists()
+        )
+
+    def test_program_access_can_be_reactivated(self):
+        self.program_access.is_active = False
+        self.program_access.save()
+
+        self.authenticate(self.partner_user)
+
+        response = self.client.post(
+            (
+                f"/api/partners/{self.partner.id}/"
+                f"program-access/{self.program_access.id}/status/"
+            ),
+            {
+                "is_active": True,
+                "notes": "Access restored.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.program_access.refresh_from_db()
+
+        self.assertTrue(
+            self.program_access.is_active
+        )
+
+    def test_cross_partner_program_access_cannot_be_changed(self):
+        other_access = PartnerProgramAccess.objects.create(
+            partner=self.other_partner,
+            institution=self.other_institution,
+            program=self.other_program,
+            is_active=True,
+        )
+
+        self.authenticate(self.partner_user)
+
+        response = self.client.post(
+            (
+                f"/api/partners/{self.partner.id}/"
+                f"program-access/{other_access.id}/status/"
+            ),
+            {
+                "is_active": False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        other_access.refresh_from_db()
+
+        self.assertTrue(other_access.is_active)
+
+    # ============================================================
+    # ISSUE LIFECYCLE
+    # ============================================================
+
+    def test_partner_issue_status_can_be_changed(self):
+        self.authenticate(self.partner_user)
+
+        response = self.client.post(
+            (
+                f"/api/partners/{self.partner.id}/"
+                f"issues/{self.issue.id}/status/"
+            ),
+            {
+                "status": "IN_PROGRESS",
+                "notes": "Partner team is reviewing the issue.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.issue.refresh_from_db()
+
+        self.assertEqual(
+            self.issue.status,
+            PartnerIssue.Status.IN_PROGRESS,
+        )
+
+        self.assertIsNone(
+            self.issue.resolved_at
+        )
+
+        self.assertTrue(
+            self.partner.activities.filter(
+                activity_type=PartnerActivity.ActivityType.ISSUE,
+                description__icontains="IN_PROGRESS",
+            ).exists()
+        )
+
+    def test_resolving_partner_issue_sets_resolved_at(self):
+        self.authenticate(self.partner_user)
+
+        response = self.client.post(
+            (
+                f"/api/partners/{self.partner.id}/"
+                f"issues/{self.issue.id}/status/"
+            ),
+            {
+                "status": "RESOLVED",
+                "notes": "Issue resolved successfully.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.issue.refresh_from_db()
+
+        self.assertEqual(
+            self.issue.status,
+            PartnerIssue.Status.RESOLVED,
+        )
+
+        self.assertIsNotNone(
+            self.issue.resolved_at
+        )
+
+    def test_reopening_partner_issue_clears_resolved_at(self):
+       
+
+        self.issue.status = PartnerIssue.Status.RESOLVED
+        self.issue.resolved_at = timezone.now()
+        self.issue.save()
+
+        self.authenticate(self.partner_user)
+
+        response = self.client.post(
+            (
+                f"/api/partners/{self.partner.id}/"
+                f"issues/{self.issue.id}/status/"
+            ),
+            {
+                "status": "IN_PROGRESS",
+                "notes": "Issue reopened.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.issue.refresh_from_db()
+
+        self.assertEqual(
+            self.issue.status,
+            PartnerIssue.Status.IN_PROGRESS,
+        )
+
+        self.assertIsNone(
+            self.issue.resolved_at
+        )
+
+    def test_cross_partner_issue_status_cannot_be_changed(self):
+        other_issue = PartnerIssue.objects.create(
+            partner=self.other_partner,
+            subject="Other Partner Issue",
+            description="Should remain untouched.",
+            status=PartnerIssue.Status.OPEN,
+        )
+
+        self.authenticate(self.partner_user)
+
+        response = self.client.post(
+            (
+                f"/api/partners/{self.partner.id}/"
+                f"issues/{other_issue.id}/status/"
+            ),
+            {
+                "status": "RESOLVED",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        other_issue.refresh_from_db()
+
+        self.assertEqual(
+            other_issue.status,
+            PartnerIssue.Status.OPEN,
+        )
+        # ============================================================
+    # OPERATIONAL SUMMARY
+    # ============================================================
+
+    def test_partner_operational_summary_respects_scope(self):
+        self.authenticate(self.partner_user)
+
+        response = self.client.get(
+            "/api/partners/summary/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+
+        self.assertEqual(
+            data["partners"]["total"],
+            2,
+        )
+
+        self.assertEqual(
+            data["partners"]["active"],
+            1,
+        )
+
+        self.assertEqual(
+            data["partners"]["prospects"],
+            1,
+        )
+
+        self.assertEqual(
+            data["cases"]["total"],
+            1,
+        )
+
+        self.assertEqual(
+            data["issues"]["total"],
+            1,
+        )
+
+    def test_superuser_partner_summary_sees_all_scope(self):
+        self.authenticate(self.superuser)
+
+        response = self.client.get(
+            "/api/partners/summary/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+
+        self.assertEqual(
+            data["partners"]["total"],
+            3,
+        )
+
+        self.assertEqual(
+            data["partners"]["active"],
+            2,
+        )
+
+        self.assertEqual(
+            data["cases"]["total"],
+            2,
+        )
+
+    # ============================================================
+    # COMMISSION QUEUE
+    # ============================================================
+
+    def test_commission_queue_returns_pending_commissions(self):
+        transaction = CommissionTransaction.objects.create(
+            partner=self.partner,
+            rule=self.fixed_rule,
+            base_amount=Decimal("25000.00"),
+            commission_amount=Decimal("3000.00"),
+            status=CommissionTransaction.Status.EARNED,
+        )
+
+        self.authenticate(self.superuser)
+
+        response = self.client.get(
+            "/api/partners/commission-queue/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        ids = {
+            item["id"]
+            for item in response.json()
+        }
+
+        self.assertIn(
+            str(transaction.id),
+            ids,
+        )
+
+    def test_paid_commission_is_not_in_pending_queue(self):
+        transaction = CommissionTransaction.objects.create(
+            partner=self.partner,
+            rule=self.fixed_rule,
+            base_amount=Decimal("25000.00"),
+            commission_amount=Decimal("3000.00"),
+            status=CommissionTransaction.Status.PAID,
+        )
+
+        self.authenticate(self.superuser)
+
+        response = self.client.get(
+            "/api/partners/commission-queue/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        ids = {
+            item["id"]
+            for item in response.json()
+        }
+
+        self.assertNotIn(
+            str(transaction.id),
+            ids,
+        )
+
+    def test_commission_queue_can_filter_status(self):
+        earned = CommissionTransaction.objects.create(
+            partner=self.partner,
+            rule=self.fixed_rule,
+            base_amount=Decimal("25000.00"),
+            commission_amount=Decimal("3000.00"),
+            status=CommissionTransaction.Status.EARNED,
+        )
+
+        approved = CommissionTransaction.objects.create(
+            partner=self.partner,
+            rule=self.fixed_rule,
+            base_amount=Decimal("30000.00"),
+            commission_amount=Decimal("3000.00"),
+            status=CommissionTransaction.Status.APPROVED,
+        )
+
+        self.authenticate(self.superuser)
+
+        response = self.client.get(
+            "/api/partners/commission-queue/"
+            "?status=APPROVED"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        ids = {
+            item["id"]
+            for item in response.json()
+        }
+
+        self.assertIn(str(approved.id), ids)
+        self.assertNotIn(str(earned.id), ids)
+
+    def test_invalid_commission_queue_status_is_rejected(self):
+        self.authenticate(self.superuser)
+
+        response = self.client.get(
+            "/api/partners/commission-queue/"
+            "?status=INVALID"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
         )

@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Count, Q, Sum
+from django.db.models.functions import Coalesce
+from decimal import Decimal
 
 from rest_framework import status
 from rest_framework.decorators import action
@@ -22,6 +24,7 @@ from .models import (
     PartnerCase,
     PartnerDocument,
     PartnerIssue,
+    PartnerProgramAccess,
 )
 from .permissions import (
     CanAccessPartners,
@@ -53,6 +56,8 @@ from .serializers import (
     PartnerStatusSerializer,
     RejectPartnerDocumentSerializer,
     VerifyPartnerDocumentSerializer,
+    PartnerIssueStatusSerializer,
+    PartnerProgramAccessStatusSerializer,
 )
 from .services import (
     add_partner_document,
@@ -72,6 +77,8 @@ from .services import (
     mark_commission_payable,
     reject_partner_document,
     verify_partner_document,
+    change_partner_issue_status,
+    change_program_access_status,
 )
 
 
@@ -571,6 +578,62 @@ class PartnerViewSet(ModelViewSet):
         return Response(
             PartnerProgramAccessSerializer(access).data,
             status=status.HTTP_201_CREATED,
+        )
+
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=(
+            r"program-access/"
+            r"(?P<access_id>[^/.]+)/status"
+        ),
+        permission_classes=[
+            IsAuthenticated,
+            CanAccessPartners,
+            CanManagePartners,
+        ],
+    )
+    def program_access_status(
+        self,
+        request,
+        pk=None,
+        access_id=None,
+    ):
+        partner = self.get_object()
+
+        try:
+            access = partner.program_access.get(
+                id=access_id
+            )
+        except PartnerProgramAccess.DoesNotExist:
+            return Response(
+                {"detail": "Program access not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = PartnerProgramAccessStatusSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            access = change_program_access_status(
+                access=access,
+                is_active=serializer.validated_data[
+                    "is_active"
+                ],
+                performed_by=request.user,
+                notes=serializer.validated_data.get(
+                    "notes",
+                    "",
+                ),
+            )
+        except ValidationError as exc:
+            return _validation_error_response(exc)
+
+        return Response(
+            PartnerProgramAccessSerializer(access).data
         )
 
     @action(
@@ -1299,6 +1362,257 @@ class PartnerViewSet(ModelViewSet):
         return Response(
             PartnerIssueSerializer(issue).data,
             status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=(
+            r"issues/"
+            r"(?P<issue_id>[^/.]+)/status"
+        ),
+        permission_classes=[
+            IsAuthenticated,
+            CanAccessPartners,
+            CanManagePartners,
+        ],
+    )
+    def issue_status(
+        self,
+        request,
+        pk=None,
+        issue_id=None,
+    ):
+        partner = self.get_object()
+
+        try:
+            issue = partner.issues.get(
+                id=issue_id
+            )
+        except PartnerIssue.DoesNotExist:
+            return Response(
+                {"detail": "Partner issue not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = PartnerIssueStatusSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            issue = change_partner_issue_status(
+                issue=issue,
+                status=serializer.validated_data["status"],
+                performed_by=request.user,
+                notes=serializer.validated_data.get(
+                    "notes",
+                    "",
+                ),
+            )
+        except ValidationError as exc:
+            return _validation_error_response(exc)
+
+        return Response(
+            PartnerIssueSerializer(issue).data
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="summary",
+    )
+    def summary(self, request):
+        partners = self.get_queryset()
+
+        partner_ids = partners.values_list(
+            "id",
+            flat=True,
+        )
+
+        cases = PartnerCase.objects.filter(
+            partner_id__in=partner_ids,
+        )
+
+        issues = PartnerIssue.objects.filter(
+            partner_id__in=partner_ids,
+        )
+
+        commissions = CommissionTransaction.objects.filter(
+            partner_id__in=partner_ids,
+        )
+
+        partner_status_counts = {
+            item["status"]: item["count"]
+            for item in partners.values("status").annotate(
+                count=Count("id")
+            )
+        }
+
+        case_status_counts = {
+            item["status"]: item["count"]
+            for item in cases.values("status").annotate(
+                count=Count("id")
+            )
+        }
+
+        commission_status_counts = {
+            item["status"]: item["count"]
+            for item in commissions.values("status").annotate(
+                count=Count("id")
+            )
+        }
+
+        open_cases = cases.exclude(
+            status__in=[
+                PartnerCase.Status.COMPLETED,
+                PartnerCase.Status.REJECTED,
+                PartnerCase.Status.CANCELLED,
+            ]
+        )
+
+        open_issues = issues.exclude(
+            status__in=[
+                PartnerIssue.Status.RESOLVED,
+                PartnerIssue.Status.CLOSED,
+            ]
+        )
+
+        pending_commissions = commissions.filter(
+            status__in=[
+                CommissionTransaction.Status.EARNED,
+                CommissionTransaction.Status.APPROVED,
+                CommissionTransaction.Status.PAYABLE,
+            ]
+        )
+
+        paid_commissions = commissions.filter(
+            status=CommissionTransaction.Status.PAID,
+        )
+
+        pending_amount = pending_commissions.aggregate(
+            total=Coalesce(
+                Sum("commission_amount"),
+                Decimal("0.00"),
+            )
+        )["total"]
+
+        paid_amount = paid_commissions.aggregate(
+            total=Coalesce(
+                Sum("commission_amount"),
+                Decimal("0.00"),
+            )
+        )["total"]
+
+        return Response({
+            "partners": {
+                "total": partners.count(),
+                "active": partners.filter(
+                    status=Partner.Status.ACTIVE
+                ).count(),
+                "prospects": partners.filter(
+                    status=Partner.Status.PROSPECT
+                ).count(),
+                "onboarding": partners.filter(
+                    status=Partner.Status.ONBOARDING
+                ).count(),
+                "status_counts": partner_status_counts,
+            },
+            "cases": {
+                "total": cases.count(),
+                "open": open_cases.count(),
+                "status_counts": case_status_counts,
+            },
+            "issues": {
+                "total": issues.count(),
+                "open": open_issues.count(),
+                "urgent_open": open_issues.filter(
+                    priority=PartnerIssue.Priority.URGENT
+                ).count(),
+            },
+            "commissions": {
+                "total": commissions.count(),
+                "pending": pending_commissions.count(),
+                "paid": paid_commissions.count(),
+                "pending_amount": str(pending_amount),
+                "paid_amount": str(paid_amount),
+                "status_counts": commission_status_counts,
+            },
+        })
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="commission-queue",
+        permission_classes=[
+            IsAuthenticated,
+            CanAccessPartners,
+            CanManagePartnerCommissions,
+        ],
+    )
+    def commission_queue(self, request):
+        scoped_partners = get_scoped_partners(
+            request.user
+        )
+
+        queryset = (
+            CommissionTransaction.objects
+            .filter(
+                partner__in=scoped_partners,
+                status__in=[
+                    CommissionTransaction.Status.EARNED,
+                    CommissionTransaction.Status.APPROVED,
+                    CommissionTransaction.Status.PAYABLE,
+                ],
+            )
+            .select_related(
+                "partner",
+                "partner_case",
+                "admission",
+                "rule",
+                "approved_by",
+            )
+            .order_by("-created_at")
+        )
+
+        commission_status = request.query_params.get(
+            "status"
+        )
+
+        partner_id = request.query_params.get(
+            "partner"
+        )
+
+        if commission_status:
+            pending_statuses = {
+                CommissionTransaction.Status.EARNED,
+                CommissionTransaction.Status.APPROVED,
+                CommissionTransaction.Status.PAYABLE,
+            }
+
+            if commission_status not in pending_statuses:
+                return Response(
+                    {
+                        "detail":
+                            "Invalid pending commission status."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            queryset = queryset.filter(
+                status=commission_status
+            )
+
+        if partner_id:
+            queryset = queryset.filter(
+                partner_id=partner_id
+            )
+
+        return Response(
+            CommissionTransactionSerializer(
+                queryset,
+                many=True,
+            ).data
         )
 
     @action(

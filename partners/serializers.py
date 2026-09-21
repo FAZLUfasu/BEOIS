@@ -587,4 +587,23 @@ class CreatePartnerIssueSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
     )
-    
+
+
+class PartnerIssueStatusSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=PartnerIssue.Status.choices,
+    )
+
+    notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )
+
+
+class PartnerProgramAccessStatusSerializer(serializers.Serializer):
+    is_active = serializers.BooleanField()
+
+    notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )

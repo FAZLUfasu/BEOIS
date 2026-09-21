@@ -845,7 +845,99 @@ def create_partner_issue(
 
     return issue
 
+# ================================================================
+# PARTNER ISSUE STATUS
+# ================================================================
 
+@transaction.atomic
+def change_partner_issue_status(
+    issue,
+    status,
+    performed_by=None,
+    notes="",
+):
+    valid_statuses = {
+        value for value, _ in PartnerIssue.Status.choices
+    }
+
+    if status not in valid_statuses:
+        raise ValidationError("Invalid partner issue status.")
+
+    previous_status = issue.status
+
+    if previous_status == status:
+        return issue
+
+    issue.status = status
+
+    if status in [
+        PartnerIssue.Status.RESOLVED,
+        PartnerIssue.Status.CLOSED,
+    ]:
+        if issue.resolved_at is None:
+            issue.resolved_at = timezone.now()
+    else:
+        issue.resolved_at = None
+
+    issue.full_clean()
+    issue.save()
+
+    description = (
+        f"Partner issue '{issue.subject}' changed "
+        f"from {previous_status} to {status}."
+    )
+
+    if notes.strip():
+        description += f" {notes.strip()}"
+
+    _log_partner_activity(
+        issue.partner,
+        PartnerActivity.ActivityType.ISSUE,
+        description,
+        performed_by,
+    )
+
+    return issue
+
+
+# ================================================================
+# PARTNER PROGRAM ACCESS STATUS
+# ================================================================
+
+@transaction.atomic
+def change_program_access_status(
+    access,
+    is_active,
+    performed_by=None,
+    notes="",
+):
+    previous_status = access.is_active
+
+    if previous_status == is_active:
+        return access
+
+    access.is_active = is_active
+
+    if notes.strip():
+        access.notes = notes.strip()
+
+    access.full_clean()
+    access.save()
+
+    action = "activated" if is_active else "deactivated"
+
+    _log_partner_activity(
+        access.partner,
+        PartnerActivity.ActivityType.PROGRAM_ACCESS,
+        (
+            f"Program access {action}: "
+            f"{access.institution.name} / "
+            f"{access.program.name}."
+        ),
+        performed_by,
+    )
+
+    return access
 # ================================================================
 # NOTES
 # ================================================================
