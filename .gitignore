@@ -72,3 +72,6 @@ pnpm-debug.log*
 ~*
 # Student uploaded documents
 students/documents/
+
+# Runtime partner document uploads
+partners/documents/
