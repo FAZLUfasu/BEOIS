@@ -1,133 +1,239 @@
-// import { apiRequest } from "@/lib/api/client";
-
-// import type {
-//   PartnerListItem,
-// } from "@/types/partners";
-
-// export function getActivePartners() {
-//   return apiRequest<PartnerListItem[]>(
-//     "/partners/active/",
-//   );
-// }
-
-import {
-  apiRequest,
-} from "@/lib/api/client";
+import { apiRequest } from "@/lib/api/client";
 
 import type {
+  AddPartnerNotePayload,
   CommissionTransaction,
+  CreatePartnerPayload,
+  PartnerActivity,
   PartnerCase,
+  PartnerDetail,
+  PartnerDocument,
   PartnerFilters,
   PartnerIssue,
   PartnerListItem,
+  PartnerStatusPayload,
   PartnerSummary,
 } from "@/types/partners";
 
 function buildQuery(
-  filters: Record<
+  params: Record<
     string,
-    string | undefined
+    string | number | boolean | null | undefined
   >,
-) {
-  const params =
-    new URLSearchParams();
+): string {
+  const searchParams = new URLSearchParams();
 
-  Object.entries(filters).forEach(
-    ([key, value]) => {
-      if (value) {
-        params.set(key, value);
-      }
-    },
+  Object.entries(params).forEach(([key, value]) => {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      searchParams.set(key, String(value));
+    }
+  });
+
+  const query = searchParams.toString();
+
+  return query ? `?${query}` : "";
+}
+
+// ============================================================
+// PARTNER LIST / DASHBOARD
+// ============================================================
+
+export async function getPartners(
+  filters: PartnerFilters = {},
+): Promise<PartnerListItem[]> {
+  const query = buildQuery({
+    search: filters.search,
+    status: filters.status,
+    partner_type: filters.partner_type,
+    state: filters.state,
+    territory: filters.territory,
+    relationship_manager: filters.manager,
+  });
+
+  return apiRequest<PartnerListItem[]>(
+    `/partners/${query}`,
   );
+}
 
-  const query =
-    params.toString();
+export async function getActivePartners(): Promise<
+  PartnerListItem[]
+> {
+  return apiRequest<PartnerListItem[]>(
+    "/partners/active/",
+  );
+}
 
-  return query
-    ? `?${query}`
-    : "";
+export async function getPartnerSummary(): Promise<
+  PartnerSummary
+> {
+  return apiRequest<PartnerSummary>(
+    "/partners/summary/",
+  );
+}
+
+export async function getOpenPartnerCases(): Promise<
+  PartnerCase[]
+> {
+  return apiRequest<PartnerCase[]>(
+    "/partners/open-cases/",
+  );
+}
+
+export async function getOpenPartnerIssues(): Promise<
+  PartnerIssue[]
+> {
+  return apiRequest<PartnerIssue[]>(
+    "/partners/open-issues/",
+  );
+}
+
+export async function getCommissionQueue(): Promise<
+  CommissionTransaction[]
+> {
+  return apiRequest<CommissionTransaction[]>(
+    "/partners/commission-queue/",
+  );
 }
 
 // ============================================================
 // PARTNER MASTER
 // ============================================================
 
-export function getPartners(
-  filters: PartnerFilters = {},
-) {
-  const query = buildQuery({
-    search: filters.search,
-    status: filters.status,
-    partner_type:
-      filters.partner_type,
-    state: filters.state,
-    territory:
-      filters.territory,
-  });
-
-  return apiRequest<
-    PartnerListItem[]
-  >(
-    `/partners/${query}`,
+export async function getPartner(
+  partnerId: string,
+): Promise<PartnerDetail> {
+  return apiRequest<PartnerDetail>(
+    `/partners/${partnerId}/`,
   );
 }
 
-export function getActivePartners() {
-  return apiRequest<
-    PartnerListItem[]
-  >(
-    "/partners/active/",
+export async function createPartner(
+  payload: CreatePartnerPayload,
+): Promise<PartnerDetail> {
+  return apiRequest<PartnerDetail>(
+    "/partners/",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
   );
 }
 
-// ============================================================
-// OPERATIONAL SUMMARY
-// ============================================================
-
-export function getPartnerSummary() {
-  return apiRequest<PartnerSummary>(
-    "/partners/summary/",
+export async function changePartnerStatus(
+  partnerId: string,
+  payload: PartnerStatusPayload,
+): Promise<PartnerDetail> {
+  return apiRequest<PartnerDetail>(
+    `/partners/${partnerId}/status/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
   );
 }
 
 // ============================================================
-// CASES
+// NOTES / ACTIVITY
 // ============================================================
 
-export function getOpenPartnerCases() {
-  return apiRequest<
-    PartnerCase[]
-  >(
-    "/partners/open-cases/",
+export async function addPartnerNote(
+  partnerId: string,
+  payload: AddPartnerNotePayload,
+): Promise<PartnerActivity> {
+  return apiRequest<PartnerActivity>(
+    `/partners/${partnerId}/note/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function getPartnerActivities(
+  partnerId: string,
+): Promise<PartnerActivity[]> {
+  return apiRequest<PartnerActivity[]>(
+    `/partners/${partnerId}/activities/`,
   );
 }
 
 // ============================================================
-// ISSUES
+// DOCUMENTS
 // ============================================================
 
-export function getOpenPartnerIssues() {
-  return apiRequest<
-    PartnerIssue[]
-  >(
-    "/partners/open-issues/",
+export async function getPartnerDocuments(
+  partnerId: string,
+): Promise<PartnerDocument[]> {
+  return apiRequest<PartnerDocument[]>(
+    `/partners/${partnerId}/documents/`,
   );
 }
 
-// ============================================================
-// COMMISSIONS
-// ============================================================
+export async function addPartnerDocument(
+  partnerId: string,
+  payload: {
+    document_type: string;
+    title?: string;
+    file?: File | null;
+    notes?: string;
+  },
+): Promise<PartnerDocument> {
+  const formData = new FormData();
 
-export function getPartnerCommissionQueue(
-  status?: string,
-) {
-  const query = buildQuery({
-    status,
-  });
+  formData.append(
+    "document_type",
+    payload.document_type,
+  );
 
-  return apiRequest<
-    CommissionTransaction[]
-  >(
-    `/partners/commission-queue/${query}`,
+  if (payload.title) {
+    formData.append("title", payload.title);
+  }
+
+  if (payload.file) {
+    formData.append("file", payload.file);
+  }
+
+  if (payload.notes) {
+    formData.append("notes", payload.notes);
+  }
+
+  return apiRequest<PartnerDocument>(
+    `/partners/${partnerId}/documents/`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+}
+
+export async function verifyPartnerDocument(
+  partnerId: string,
+  documentId: string,
+  notes = "",
+): Promise<PartnerDocument> {
+  return apiRequest<PartnerDocument>(
+    `/partners/${partnerId}/documents/${documentId}/verify/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+    },
+  );
+}
+
+export async function rejectPartnerDocument(
+  partnerId: string,
+  documentId: string,
+  reason: string,
+): Promise<PartnerDocument> {
+  return apiRequest<PartnerDocument>(
+    `/partners/${partnerId}/documents/${documentId}/reject/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    },
   );
 }
