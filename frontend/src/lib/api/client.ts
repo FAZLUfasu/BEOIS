@@ -42,6 +42,108 @@ async function readResponse(
   return response.text();
 }
 
+function extractErrorMessage(
+  data: unknown,
+  status: number,
+): string {
+  if (typeof data === "string") {
+    const message = data.trim();
+
+    if (message) {
+      return message;
+    }
+  }
+
+  if (
+    typeof data === "object" &&
+    data !== null
+  ) {
+    const errorData =
+      data as Record<string, unknown>;
+
+    // Common API error formats.
+    for (const key of [
+      "detail",
+      "message",
+      "error",
+    ]) {
+      const value = errorData[key];
+
+      if (
+        typeof value === "string" &&
+        value.trim()
+      ) {
+        return value.trim();
+      }
+    }
+
+    const messages: string[] = [];
+
+    Object.entries(errorData).forEach(
+      ([field, value]) => {
+        const label =
+          field === "non_field_errors"
+            ? "Error"
+            : field
+                .replace(/_/g, " ")
+                .replace(
+                  /\b\w/g,
+                  (character) =>
+                    character.toUpperCase(),
+                );
+
+        if (Array.isArray(value)) {
+          const text = value
+            .map((item) => String(item))
+            .join(", ");
+
+          if (text) {
+            messages.push(
+              `${label}: ${text}`,
+            );
+          }
+
+          return;
+        }
+
+        if (
+          typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean"
+        ) {
+          messages.push(
+            `${label}: ${String(value)}`,
+          );
+          return;
+        }
+
+        if (
+          value !== null &&
+          value !== undefined
+        ) {
+          try {
+            messages.push(
+              `${label}: ${JSON.stringify(
+                value,
+              )}`,
+            );
+          } catch {
+            messages.push(
+              `${label}: Invalid value.`,
+            );
+          }
+        }
+      },
+    );
+
+    if (messages.length > 0) {
+      return messages.join(" | ");
+    }
+  }
+
+  return `API request failed with status ${status}.`;
+}
+
 async function refreshAccessToken() {
   const refresh = getRefreshToken();
 
@@ -54,7 +156,8 @@ async function refreshAccessToken() {
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":
+          "application/json",
       },
       body: JSON.stringify({
         refresh,
@@ -67,9 +170,10 @@ async function refreshAccessToken() {
     return null;
   }
 
-  const data = (await response.json()) as {
-    access: string;
-  };
+  const data =
+    (await response.json()) as {
+      access: string;
+    };
 
   saveAccessToken(data.access);
 
@@ -98,8 +202,13 @@ export async function apiRequest<T>(
 
   if (
     requestOptions.body &&
-    !requestHeaders.has("Content-Type") &&
-    !(requestOptions.body instanceof FormData)
+    !requestHeaders.has(
+      "Content-Type",
+    ) &&
+    !(
+      requestOptions.body instanceof
+      FormData
+    )
   ) {
     requestHeaders.set(
       "Content-Type",
@@ -156,7 +265,10 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     throw new ApiError(
-      `API request failed with status ${response.status}.`,
+      extractErrorMessage(
+        data,
+        response.status,
+      ),
       response.status,
       data,
     );

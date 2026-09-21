@@ -2,8 +2,11 @@
 
 import {
   Activity,
+  BookOpen,
+  BriefcaseBusiness,
   Building2,
   CheckCircle2,
+  CircleAlert,
   Clock3,
   FileText,
   Loader2,
@@ -17,6 +20,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
+
 import {
   FormEvent,
   useCallback,
@@ -42,6 +46,17 @@ import type {
   PartnerDocumentType,
   PartnerStatus,
 } from "@/types/partners";
+import {
+  PartnerProgramAccessPanel,
+} from "@/components/partners/partner-program-access";
+
+import {
+  PartnerCasesPanel,
+} from "@/components/partners/partner-cases";
+
+import {
+  PartnerIssuesPanel,
+} from "@/components/partners/partner-issues";
 
 interface PartnerDetailDrawerProps {
   partnerId: string | null;
@@ -52,7 +67,10 @@ interface PartnerDetailDrawerProps {
 type DetailTab =
   | "OVERVIEW"
   | "ACTIVITY"
-  | "DOCUMENTS";
+  | "DOCUMENTS"
+  | "PROGRAM_ACCESS"
+  | "CASES"
+  | "ISSUES";
 
 const STATUS_OPTIONS: Array<{
   value: PartnerStatus;
@@ -619,6 +637,41 @@ export function PartnerDetailDrawer({
               }
             >
               Documents
+            </TabButton>
+            <TabButton
+              active={tab === "PROGRAM_ACCESS"}
+              onClick={() =>
+                setTab("PROGRAM_ACCESS")
+              }
+              icon={
+                <BookOpen className="h-4 w-4" />
+              }
+            >
+              Program Access
+            </TabButton>
+
+            <TabButton
+              active={tab === "CASES"}
+              onClick={() =>
+                setTab("CASES")
+              }
+              icon={
+                <BriefcaseBusiness className="h-4 w-4" />
+              }
+            >
+              Cases
+            </TabButton>
+
+            <TabButton
+              active={tab === "ISSUES"}
+              onClick={() =>
+                setTab("ISSUES")
+              }
+              icon={
+                <CircleAlert className="h-4 w-4" />
+              }
+            >
+              Issues
             </TabButton>
           </nav>
         </header>
@@ -1209,7 +1262,40 @@ export function PartnerDetailDrawer({
                 </div>
               </section>
             </div>
-          ) : null}
+            ) : null}
+
+              {partner &&
+              tab === "PROGRAM_ACCESS" ? (
+                <PartnerProgramAccessPanel
+                  partnerId={partner.id}
+                  onChanged={() => {
+                    void loadPartner(true);
+                    onChanged?.();
+                  }}
+                />
+              ) : null}
+
+              {partner &&
+              tab === "CASES" ? (
+                <PartnerCasesPanel
+                  partnerId={partner.id}
+                  onChanged={() => {
+                    void loadPartner(true);
+                    onChanged?.();
+                  }}
+                />
+              ) : null}
+
+              {partner &&
+              tab === "ISSUES" ? (
+                <PartnerIssuesPanel
+                  partnerId={partner.id}
+                  onChanged={() => {
+                    void loadPartner(true);
+                    onChanged?.();
+                  }}
+                />
+              ) : null}
         </main>
       </div>
     </div>

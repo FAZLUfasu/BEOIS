@@ -3,16 +3,24 @@ import { apiRequest } from "@/lib/api/client";
 import type {
   AddPartnerNotePayload,
   CommissionTransaction,
+  CreatePartnerCasePayload,
+  CreatePartnerIssuePayload,
   CreatePartnerPayload,
+  GrantProgramAccessPayload,
+  LinkAdmissionPayload,
   PartnerActivity,
   PartnerCase,
+  PartnerCaseStatusPayload,
   PartnerDetail,
   PartnerDocument,
   PartnerFilters,
   PartnerIssue,
+  PartnerIssueStatusPayload,
   PartnerListItem,
+  PartnerProgramAccess,
   PartnerStatusPayload,
   PartnerSummary,
+  ProgramAccessStatusPayload,
 } from "@/types/partners";
 
 function buildQuery(
@@ -234,6 +242,158 @@ export async function rejectPartnerDocument(
     {
       method: "POST",
       body: JSON.stringify({ reason }),
+    },
+  );
+}
+// ============================================================
+// PROGRAM ACCESS
+// ============================================================
+
+export async function getPartnerProgramAccess(
+  partnerId: string,
+): Promise<PartnerProgramAccess[]> {
+  return apiRequest<PartnerProgramAccess[]>(
+    `/partners/${partnerId}/program-access/`,
+  );
+}
+
+export async function grantPartnerProgramAccess(
+  partnerId: string,
+  payload: GrantProgramAccessPayload,
+): Promise<PartnerProgramAccess> {
+  return apiRequest<PartnerProgramAccess>(
+    `/partners/${partnerId}/program-access/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function changePartnerProgramAccessStatus(
+  partnerId: string,
+  accessId: string,
+  payload: ProgramAccessStatusPayload,
+): Promise<PartnerProgramAccess> {
+  return apiRequest<PartnerProgramAccess>(
+    `/partners/${partnerId}/program-access/${accessId}/status/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+// ============================================================
+// PARTNER CASES
+// ============================================================
+
+export async function getPartnerCases(
+  partnerId: string,
+): Promise<PartnerCase[]> {
+  return apiRequest<PartnerCase[]>(
+    `/partners/${partnerId}/cases/`,
+  );
+}
+
+export async function createPartnerCase(
+  partnerId: string,
+  payload: CreatePartnerCasePayload,
+): Promise<PartnerCase> {
+  return apiRequest<PartnerCase>(
+    `/partners/${partnerId}/cases/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function changePartnerCaseStatus(
+  partnerId: string,
+  caseId: string,
+  payload: PartnerCaseStatusPayload,
+): Promise<PartnerCase> {
+  return apiRequest<PartnerCase>(
+    `/partners/${partnerId}/cases/${caseId}/status/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function createLeadFromPartnerCase(
+  partnerId: string,
+  caseId: string,
+): Promise<{
+  id: string;
+  lead_id: string;
+  name: string;
+  status: string;
+}> {
+  return apiRequest<{
+    id: string;
+    lead_id: string;
+    name: string;
+    status: string;
+  }>(
+    `/partners/${partnerId}/cases/${caseId}/create-lead/`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function linkPartnerCaseAdmission(
+  partnerId: string,
+  caseId: string,
+  payload: LinkAdmissionPayload,
+): Promise<PartnerCase> {
+  return apiRequest<PartnerCase>(
+    `/partners/${partnerId}/cases/${caseId}/link-admission/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+// ============================================================
+// PARTNER ISSUES
+// ============================================================
+
+export async function getPartnerIssues(
+  partnerId: string,
+): Promise<PartnerIssue[]> {
+  return apiRequest<PartnerIssue[]>(
+    `/partners/${partnerId}/issues/`,
+  );
+}
+
+export async function createPartnerIssue(
+  partnerId: string,
+  payload: CreatePartnerIssuePayload,
+): Promise<PartnerIssue> {
+  return apiRequest<PartnerIssue>(
+    `/partners/${partnerId}/issues/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function changePartnerIssueStatus(
+  partnerId: string,
+  issueId: string,
+  payload: PartnerIssueStatusPayload,
+): Promise<PartnerIssue> {
+  return apiRequest<PartnerIssue>(
+    `/partners/${partnerId}/issues/${issueId}/status/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
     },
   );
 }
