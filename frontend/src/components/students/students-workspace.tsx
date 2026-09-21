@@ -33,6 +33,16 @@ import {
   getStudents,
 } from "@/lib/api/students";
 
+import {
+  StudentProcessPanel,
+} from "@/components/students/student-process-panel";
+
+import {
+  StudentActivityPanel,
+} from "@/components/students/student-activity-panel";
+import {
+  StudentDocumentPanel,
+} from "@/components/students/student-document-panel";
 import type {
   CompletedAdmissionHandoff,
   EducationWorkspaceView,
@@ -157,7 +167,9 @@ function getErrorMessage(
   return "Something went wrong.";
 }
 
-function statusClass(status: string) {
+function statusClass(
+  status: string,
+) {
   switch (status) {
     case "ACTIVE":
     case "COMPLETED":
@@ -205,7 +217,11 @@ function StatusBadge({
         statusClass(status),
       ].join(" ")}
     >
-      {label ?? status.replaceAll("_", " ")}
+      {label ??
+        status.replaceAll(
+          "_",
+          " ",
+        )}
     </span>
   );
 }
@@ -248,10 +264,12 @@ function StudentDetailPanel({
   student,
   loading,
   onClose,
+  onRefresh,
 }: {
   student: StudentDetail | null;
   loading: boolean;
   onClose: () => void;
+  onRefresh: () => Promise<void>;
 }) {
   if (!student && !loading) {
     return null;
@@ -274,7 +292,8 @@ function StudentDetailPanel({
             </p>
 
             <h2 className="mt-1 text-xl font-bold text-slate-950">
-              {student?.name ?? "Loading..."}
+              {student?.name ??
+                "Loading..."}
             </h2>
           </div>
 
@@ -297,12 +316,19 @@ function StudentDetailPanel({
               </span>
 
               <StatusBadge
-                status={student.status}
-                label={student.status_display}
+                status={
+                  student.status
+                }
+                label={
+                  student.status_display
+                }
               />
 
               <span className="text-sm text-slate-500">
-                {student.vertical.replaceAll("_", " ")}
+                {student.vertical.replaceAll(
+                  "_",
+                  " ",
+                )}
                 {" · "}
                 {student.channel}
               </span>
@@ -316,22 +342,30 @@ function StudentDetailPanel({
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <DetailItem
                   label="Institution"
-                  value={student.institution_name}
+                  value={
+                    student.institution_name
+                  }
                 />
 
                 <DetailItem
                   label="Program"
-                  value={student.program_name}
+                  value={
+                    student.program_name
+                  }
                 />
 
                 <DetailItem
                   label="Academic Session"
-                  value={student.academic_session}
+                  value={
+                    student.academic_session
+                  }
                 />
 
                 <DetailItem
                   label="Enrollment No."
-                  value={student.enrollment_number}
+                  value={
+                    student.enrollment_number
+                  }
                 />
 
                 <DetailItem
@@ -356,119 +390,148 @@ function StudentDetailPanel({
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <DetailItem
                   label="Phone"
-                  value={student.phone_number}
+                  value={
+                    student.phone_number
+                  }
                 />
 
                 <DetailItem
                   label="Email"
-                  value={student.email}
+                  value={
+                    student.email
+                  }
                 />
 
                 <DetailItem
                   label="City"
-                  value={student.city}
+                  value={
+                    student.city
+                  }
                 />
 
                 <DetailItem
                   label="State"
-                  value={student.state}
+                  value={
+                    student.state
+                  }
                 />
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-slate-900">
-                  Education Processes
-                </h3>
+            {/* ============================================= */}
+            {/* OPERATIONAL EDUCATION PROCESS MANAGEMENT      */}
+            {/* ============================================= */}
 
-                <span className="text-sm text-slate-500">
-                  {student.processes.length} process
-                  {student.processes.length === 1
-                    ? ""
-                    : "es"}
-                </span>
-              </div>
+            <StudentProcessPanel
+              student={student}
+              onRefresh={
+                onRefresh
+              }
+            />
 
-              <div className="mt-4 space-y-3">
-                {student.processes.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    No education processes have been initialized.
-                  </p>
-                ) : (
-                  student.processes.map(
-                    (process) => (
-                      <div
-                        key={process.id}
-                        className="rounded-xl border border-slate-200 p-4"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-slate-900">
-                              {process.title ||
-                                process.process_type_display}
-                            </p>
+            {/* ============================================= */}
+            {/* ACADEMIC PROGRESS + NOTES + ACTIVITY          */}
+            {/* ============================================= */}
 
-                            <p className="mt-1 text-xs text-slate-500">
-                              {process.process_type_display}
-                              {process.academic_year
-                                ? ` · Year ${process.academic_year}`
-                                : ""}
-                              {process.semester
-                                ? ` · Semester ${process.semester}`
-                                : ""}
-                            </p>
-                          </div>
-
-                          <StatusBadge
-                            status={process.status}
-                            label={
-                              process.status_display
-                            }
-                          />
-                        </div>
-
-                        {process.due_date && (
-                          <p className="mt-3 text-xs text-slate-500">
-                            Due {formatDate(process.due_date)}
-                          </p>
-                        )}
-                      </div>
-                    ),
-                  )
-                )}
-              </div>
-            </section>
+            <StudentActivityPanel
+              student={student}
+              onRefresh={
+                onRefresh
+              }
+            />
+            <StudentDocumentPanel
+              student={student}
+              onRefresh={onRefresh}
+            />
 
             <section className="rounded-2xl border border-slate-200 p-5">
               <h3 className="font-semibold text-slate-900">
-                Documents & Activity
+                Documents
               </h3>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-slate-50 p-4">
                   <p className="text-2xl font-bold text-slate-950">
-                    {student.documents.length}
+                    {
+                      student.documents
+                        .length
+                    }
                   </p>
+
                   <p className="mt-1 text-xs text-slate-500">
-                    Documents
+                    Total Documents
                   </p>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-4">
                   <p className="text-2xl font-bold text-slate-950">
-                    {student.activities.length}
+                    {
+                      student.documents.filter(
+                        (
+                          document,
+                        ) =>
+                          document.verified,
+                      ).length
+                    }
                   </p>
+
                   <p className="mt-1 text-xs text-slate-500">
-                    Activities
+                    Verified
                   </p>
                 </div>
               </div>
 
+              {student.documents
+                .length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {student.documents
+                    .slice(0, 5)
+                    .map(
+                      (
+                        document,
+                      ) => (
+                        <div
+                          key={
+                            document.id
+                          }
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-slate-800">
+                              {document.title ||
+                                document.document_type_display}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              {
+                                document.document_type_display
+                              }
+                            </p>
+                          </div>
+
+                          <StatusBadge
+                            status={
+                              document.verified
+                                ? "COMPLETED"
+                                : "PENDING"
+                            }
+                            label={
+                              document.verified
+                                ? "Verified"
+                                : "Pending"
+                            }
+                          />
+                        </div>
+                      ),
+                    )}
+                </div>
+              )}
+
               <p className="mt-4 text-xs text-slate-500">
-                Document management, process actions and
-                full activity timeline will be enabled in
-                the next frontend block.
+                Upload, verification and
+                complete document management
+                will be enabled in the next
+                implementation block.
               </p>
             </section>
           </div>
@@ -512,7 +575,9 @@ export function StudentsWorkspace() {
     useState("");
 
   const [students, setStudents] =
-    useState<StudentListItem[]>([]);
+    useState<StudentListItem[]>(
+      [],
+    );
 
   const [handoffs, setHandoffs] =
     useState<
@@ -520,7 +585,9 @@ export function StudentsWorkspace() {
     >([]);
 
   const [processes, setProcesses] =
-    useState<StudentProcess[]>([]);
+    useState<StudentProcess[]>(
+      [],
+    );
 
   const [loading, setLoading] =
     useState(true);
@@ -528,7 +595,10 @@ export function StudentsWorkspace() {
   const [error, setError] =
     useState("");
 
-  const [selectedStudent, setSelectedStudent] =
+  const [
+    selectedStudent,
+    setSelectedStudent,
+  ] =
     useState<StudentDetail | null>(
       null,
     );
@@ -555,7 +625,9 @@ export function StudentsWorkspace() {
       setError("");
 
       try {
-        if (view === "STUDENTS") {
+        if (
+          view === "STUDENTS"
+        ) {
           const data =
             await getStudents({
               search:
@@ -567,7 +639,9 @@ export function StudentsWorkspace() {
           return;
         }
 
-        if (view === "HANDOFF") {
+        if (
+          view === "HANDOFF"
+        ) {
           const data =
             await getCompletedAdmissionHandoffs(
               {
@@ -586,39 +660,50 @@ export function StudentsWorkspace() {
 
         if (processType) {
           const data =
-            await getStudentProcessQueue({
-              process_type:
-                processType,
-              search:
-                search.trim() ||
-                undefined,
-            });
+            await getStudentProcessQueue(
+              {
+                process_type:
+                  processType,
+                search:
+                  search.trim() ||
+                  undefined,
+              },
+            );
 
           setProcesses(data);
           return;
         }
 
-        if (view === "PENDING") {
+        if (
+          view === "PENDING"
+        ) {
           const data =
-            await getStudentProcessQueue({
-              status: "PENDING",
-              search:
-                search.trim() ||
-                undefined,
-            });
+            await getStudentProcessQueue(
+              {
+                status:
+                  "PENDING",
+                search:
+                  search.trim() ||
+                  undefined,
+              },
+            );
 
           setProcesses(data);
           return;
         }
 
-        if (view === "OVERDUE") {
+        if (
+          view === "OVERDUE"
+        ) {
           const data =
-            await getStudentProcessQueue({
-              overdue: true,
-              search:
-                search.trim() ||
-                undefined,
-            });
+            await getStudentProcessQueue(
+              {
+                overdue: true,
+                search:
+                  search.trim() ||
+                  undefined,
+              },
+            );
 
           setProcesses(data);
         }
@@ -641,8 +726,13 @@ export function StudentsWorkspace() {
       );
 
     return () =>
-      window.clearTimeout(timeout);
-  }, [loadCurrentView, search]);
+      window.clearTimeout(
+        timeout,
+      );
+  }, [
+    loadCurrentView,
+    search,
+  ]);
 
   // ==========================================================
   // STUDENT DETAIL
@@ -650,9 +740,16 @@ export function StudentsWorkspace() {
 
   const openStudent =
     useCallback(
-      async (studentId: string) => {
-        setDetailLoading(true);
-        setSelectedStudent(null);
+      async (
+        studentId: string,
+      ) => {
+        setDetailLoading(
+          true,
+        );
+
+        setSelectedStudent(
+          null,
+        );
 
         try {
           const data =
@@ -660,17 +757,61 @@ export function StudentsWorkspace() {
               studentId,
             );
 
-          setSelectedStudent(data);
+          setSelectedStudent(
+            data,
+          );
         } catch (err) {
           setError(
-            getErrorMessage(err),
+            getErrorMessage(
+              err,
+            ),
           );
         } finally {
-          setDetailLoading(false);
+          setDetailLoading(
+            false,
+          );
         }
       },
       [],
     );
+
+  // ==========================================================
+  // REFRESH CURRENT SELECTED STUDENT
+  // ==========================================================
+
+  const refreshSelectedStudent =
+    useCallback(async () => {
+      if (
+        !selectedStudent
+      ) {
+        return;
+      }
+
+      try {
+        const refreshed =
+          await getStudent(
+            selectedStudent.id,
+          );
+
+        setSelectedStudent(
+          refreshed,
+        );
+
+        // Also refresh the active workspace queue.
+        // This keeps Exam / Project / Result / Pending /
+        // Overdue etc. synchronized after process changes.
+        await loadCurrentView();
+      } catch (err) {
+        setError(
+          getErrorMessage(err),
+        );
+
+        throw err;
+      }
+    }, [
+      selectedStudent,
+      loadCurrentView,
+    ]);
 
   // ==========================================================
   // HANDOFF
@@ -685,6 +826,7 @@ export function StudentsWorkspace() {
         setConvertingAdmissionId(
           admission.id,
         );
+
         setError("");
 
         try {
@@ -693,9 +835,13 @@ export function StudentsWorkspace() {
               {
                 admission_id:
                   admission.id,
+
                 assigned_coordinator_id:
-                  admission.assigned_to
-                    ?.id ?? null,
+                  admission
+                    .assigned_to
+                    ?.id ??
+                  null,
+
                 initialize_processes:
                   true,
               },
@@ -708,7 +854,9 @@ export function StudentsWorkspace() {
           );
         } catch (err) {
           setError(
-            getErrorMessage(err),
+            getErrorMessage(
+              err,
+            ),
           );
         } finally {
           setConvertingAdmissionId(
@@ -722,14 +870,17 @@ export function StudentsWorkspace() {
       ],
     );
 
-  const title = useMemo(() => {
-    return (
-      TABS.find(
-        (tab) => tab.key === view,
-      )?.label ??
-      "Education Process"
-    );
-  }, [view]);
+  const title =
+    useMemo(() => {
+      return (
+        TABS.find(
+          (tab) =>
+            tab.key ===
+            view,
+        )?.label ??
+        "Education Process"
+      );
+    }, [view]);
 
   // ==========================================================
   // RENDER
@@ -741,7 +892,8 @@ export function StudentsWorkspace() {
         <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">
-              Education Process Management
+              Education Process
+              Management
             </p>
 
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
@@ -749,9 +901,12 @@ export function StudentsWorkspace() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm text-slate-500">
-              Manage students from completed admission
-              handoff through exams, academic processes,
-              results, mark sheets and certification.
+              Manage students from
+              completed admission
+              handoff through exams,
+              academic processes,
+              results, mark sheets
+              and certification.
             </p>
           </div>
 
@@ -769,31 +924,47 @@ export function StudentsWorkspace() {
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <div className="flex min-w-max gap-1">
-            {TABS.map((tab) => {
-              const Icon = tab.icon;
-              const active =
-                view === tab.key;
+            {TABS.map(
+              (tab) => {
+                const Icon =
+                  tab.icon;
 
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setView(tab.key);
-                  }}
-                  className={[
-                    "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
-                    active
-                      ? "bg-slate-950 text-white shadow-sm"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
-                  ].join(" ")}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
+                const active =
+                  view ===
+                  tab.key;
+
+                return (
+                  <button
+                    key={
+                      tab.key
+                    }
+                    type="button"
+                    onClick={() => {
+                      setSearch(
+                        "",
+                      );
+
+                      setView(
+                        tab.key,
+                      );
+                    }}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                      active
+                        ? "bg-slate-950 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                    ].join(
+                      " ",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {
+                      tab.label
+                    }
+                  </button>
+                );
+              },
+            )}
           </div>
         </div>
 
@@ -819,10 +990,16 @@ export function StudentsWorkspace() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
               <input
-                value={search}
-                onChange={(event) =>
+                value={
+                  search
+                }
+                onChange={(
+                  event,
+                ) =>
                   setSearch(
-                    event.target.value,
+                    event
+                      .target
+                      .value,
                   )
                 }
                 placeholder={
@@ -842,7 +1019,10 @@ export function StudentsWorkspace() {
           {error && (
             <div className="mx-5 mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
+
+              <span>
+                {error}
+              </span>
             </div>
           )}
 
@@ -852,13 +1032,19 @@ export function StudentsWorkspace() {
             ) : view ===
               "STUDENTS" ? (
               <StudentsTable
-                students={students}
-                onOpen={openStudent}
+                students={
+                  students
+                }
+                onOpen={
+                  openStudent
+                }
               />
             ) : view ===
               "HANDOFF" ? (
               <HandoffTable
-                admissions={handoffs}
+                admissions={
+                  handoffs
+                }
                 convertingAdmissionId={
                   convertingAdmissionId
                 }
@@ -868,7 +1054,9 @@ export function StudentsWorkspace() {
               />
             ) : (
               <ProcessTable
-                processes={processes}
+                processes={
+                  processes
+                }
                 onOpenStudent={
                   openStudent
                 }
@@ -879,11 +1067,23 @@ export function StudentsWorkspace() {
       </div>
 
       <StudentDetailPanel
-        student={selectedStudent}
-        loading={detailLoading}
+        student={
+          selectedStudent
+        }
+        loading={
+          detailLoading
+        }
+        onRefresh={
+          refreshSelectedStudent
+        }
         onClose={() => {
-          setSelectedStudent(null);
-          setDetailLoading(false);
+          setSelectedStudent(
+            null,
+          );
+
+          setDetailLoading(
+            false,
+          );
         }}
       />
     </>
@@ -899,11 +1099,14 @@ function StudentsTable({
   onOpen,
 }: {
   students: StudentListItem[];
+
   onOpen: (
     studentId: string,
   ) => void | Promise<void>;
 }) {
-  if (students.length === 0) {
+  if (
+    students.length === 0
+  ) {
     return (
       <EmptyState
         title="No students found"
@@ -920,18 +1123,24 @@ function StudentsTable({
             <th className="border-b border-slate-200 px-4 py-3">
               Student
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
-              Institution / Program
+              Institution /
+              Program
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Stage
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Vertical
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Status
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Coordinator
             </th>
@@ -942,7 +1151,9 @@ function StudentsTable({
           {students.map(
             (student) => (
               <tr
-                key={student.id}
+                key={
+                  student.id
+                }
                 onClick={() =>
                   void onOpen(
                     student.id,
@@ -952,30 +1163,46 @@ function StudentsTable({
               >
                 <td className="border-b border-slate-100 px-4 py-4">
                   <p className="font-semibold text-slate-900">
-                    {student.name}
+                    {
+                      student.name
+                    }
                   </p>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    {student.student_id}
+                    {
+                      student.student_id
+                    }
                     {" · "}
-                    {student.phone_number}
+                    {
+                      student.phone_number
+                    }
                   </p>
                 </td>
 
                 <td className="border-b border-slate-100 px-4 py-4">
                   <p className="text-sm font-medium text-slate-800">
-                    {student.institution_name}
+                    {
+                      student.institution_name
+                    }
                   </p>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    {student.program_name}
+                    {
+                      student.program_name
+                    }
                   </p>
                 </td>
 
                 <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-600">
-                  Year {student.current_year}
+                  Year{" "}
+                  {
+                    student.current_year
+                  }
                   {" · "}
-                  Sem {student.current_semester}
+                  Sem{" "}
+                  {
+                    student.current_semester
+                  }
                 </td>
 
                 <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-600">
@@ -999,7 +1226,8 @@ function StudentsTable({
                 <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-600">
                   {student
                     .assigned_coordinator
-                    ?.username ?? "—"}
+                    ?.username ??
+                    "—"}
                 </td>
               </tr>
             ),
@@ -1030,7 +1258,9 @@ function HandoffTable({
       CompletedAdmissionHandoff,
   ) => void | Promise<void>;
 }) {
-  if (admissions.length === 0) {
+  if (
+    admissions.length === 0
+  ) {
     return (
       <EmptyState
         title="No admissions waiting"
@@ -1047,18 +1277,24 @@ function HandoffTable({
             <th className="border-b border-slate-200 px-4 py-3">
               Applicant
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
-              Institution / Program
+              Institution /
+              Program
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Enrollment
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Type
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Completed
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3 text-right">
               Action
             </th>
@@ -1067,14 +1303,18 @@ function HandoffTable({
 
         <tbody>
           {admissions.map(
-            (admission) => {
+            (
+              admission,
+            ) => {
               const converting =
                 convertingAdmissionId ===
                 admission.id;
 
               return (
                 <tr
-                  key={admission.id}
+                  key={
+                    admission.id
+                  }
                   className="hover:bg-slate-50"
                 >
                   <td className="border-b border-slate-100 px-4 py-4">
@@ -1115,9 +1355,13 @@ function HandoffTable({
                   </td>
 
                   <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-600">
-                    {admission.vertical_display}
+                    {
+                      admission.vertical_display
+                    }
                     {" · "}
-                    {admission.channel_display}
+                    {
+                      admission.channel_display
+                    }
                   </td>
 
                   <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-600">
@@ -1129,7 +1373,9 @@ function HandoffTable({
                   <td className="border-b border-slate-100 px-4 py-4 text-right">
                     <button
                       type="button"
-                      disabled={converting}
+                      disabled={
+                        converting
+                      }
                       onClick={() =>
                         void onConvert(
                           admission,
@@ -1170,7 +1416,9 @@ function ProcessTable({
     studentId: string,
   ) => void | Promise<void>;
 }) {
-  if (processes.length === 0) {
+  if (
+    processes.length === 0
+  ) {
     return (
       <EmptyState
         title="No processes found"
@@ -1187,18 +1435,23 @@ function ProcessTable({
             <th className="border-b border-slate-200 px-4 py-3">
               Student
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Process
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Academic Stage
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Due Date
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Status
             </th>
+
             <th className="border-b border-slate-200 px-4 py-3">
               Assigned To
             </th>
@@ -1209,7 +1462,9 @@ function ProcessTable({
           {processes.map(
             (process) => (
               <tr
-                key={process.id}
+                key={
+                  process.id
+                }
                 onClick={() =>
                   void onOpenStudent(
                     process.student,
@@ -1219,11 +1474,15 @@ function ProcessTable({
               >
                 <td className="border-b border-slate-100 px-4 py-4">
                   <p className="font-semibold text-slate-900">
-                    {process.student_name}
+                    {
+                      process.student_name
+                    }
                   </p>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    {process.student_id}
+                    {
+                      process.student_id
+                    }
                   </p>
                 </td>
 
@@ -1244,6 +1503,7 @@ function ProcessTable({
                   {process.academic_year
                     ? `Year ${process.academic_year}`
                     : "—"}
+
                   {process.semester
                     ? ` · Sem ${process.semester}`
                     : ""}
@@ -1267,8 +1527,10 @@ function ProcessTable({
                 </td>
 
                 <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-600">
-                  {process.assigned_to
-                    ?.username ?? "—"}
+                  {process
+                    .assigned_to
+                    ?.username ??
+                    "—"}
                 </td>
               </tr>
             ),
