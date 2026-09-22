@@ -12,6 +12,7 @@ import {
   BriefcaseBusiness,
   Building2,
   CalendarCheck2,
+  CalendarDays,
   Loader2,
   Plus,
   RefreshCw,
@@ -33,6 +34,10 @@ import {
 import {
   AttendancePanel,
 } from "@/components/hr/attendance-panel";
+
+import {
+  LeavePanel,
+} from "@/components/hr/leave-panel";
 
 import {
   DesignationsPanel,
@@ -60,6 +65,7 @@ import type {
 type HRView =
   | "EMPLOYEES"
   | "ATTENDANCE"
+  | "LEAVE"
   | "DESIGNATIONS";
 
 
@@ -541,9 +547,10 @@ export function HRWorkspace() {
               Manage employees,
               organizational assignments,
               employment status,
-              attendance and workforce
-              configuration from one
-              operational workspace.
+              attendance, leave and
+              workforce configuration
+              from one operational
+              workspace.
             </p>
           </div>
 
@@ -664,6 +671,26 @@ export function HRWorkspace() {
               type="button"
               onClick={() =>
                 setView(
+                  "LEAVE",
+                )
+              }
+              className={[
+                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                view ===
+                "LEAVE"
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+              ].join(" ")}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Leave
+            </button>
+
+
+            <button
+              type="button"
+              onClick={() =>
+                setView(
                   "DESIGNATIONS",
                 )
               }
@@ -688,6 +715,9 @@ export function HRWorkspace() {
         ) : view ===
           "ATTENDANCE" ? (
           <AttendancePanel />
+        ) : view ===
+          "LEAVE" ? (
+          <LeavePanel />
         ) : (
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5">
