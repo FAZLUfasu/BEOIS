@@ -13,6 +13,10 @@ import type {
   PayrollPeriod,
   PayrollPeriodSummary,
   CreatePayrollPeriodPayload,
+  Payroll,
+  CreatePayrollPayload,
+  PayrollAdjustmentPayload,
+  PayrollAdvanceRecoveryPayload,
 } from "@/types/payroll";
 
 
@@ -190,6 +194,124 @@ export async function closePayrollPeriod(
     `/hr/payroll-periods/${id}/close/`,
     {
       method: "POST",
+    },
+  );
+}
+// ================================================================
+// PAYROLL PROCESSING
+// ================================================================
+
+export interface PayrollFilters {
+  employee?: string;
+  period?: string;
+  status?: string;
+}
+
+export async function getPayrolls(
+  filters: PayrollFilters = {},
+) {
+  const params = new URLSearchParams();
+
+  if (filters.employee) {
+    params.set("employee", filters.employee);
+  }
+
+  if (filters.period) {
+    params.set("period", filters.period);
+  }
+
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+
+  const query = params.toString();
+
+  return apiRequest<Payroll[]>(
+    query
+      ? `/hr/payrolls/?${query}`
+      : "/hr/payrolls/",
+  );
+}
+
+export async function getPayroll(
+  id: string,
+) {
+  return apiRequest<Payroll>(
+    `/hr/payrolls/${id}/`,
+  );
+}
+
+export async function createPayroll(
+  payload: CreatePayrollPayload,
+) {
+  return apiRequest<Payroll>(
+    "/hr/payrolls/",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function calculatePayroll(
+  id: string,
+) {
+  return apiRequest<Payroll>(
+    `/hr/payrolls/${id}/calculate/`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function addPayrollIncentive(
+  id: string,
+  payload: PayrollAdjustmentPayload,
+) {
+  return apiRequest<Payroll>(
+    `/hr/payrolls/${id}/incentive/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function addPayrollBonus(
+  id: string,
+  payload: PayrollAdjustmentPayload,
+) {
+  return apiRequest<Payroll>(
+    `/hr/payrolls/${id}/bonus/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function addPayrollDeduction(
+  id: string,
+  payload: PayrollAdjustmentPayload,
+) {
+  return apiRequest<Payroll>(
+    `/hr/payrolls/${id}/deduction/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function addPayrollAdvanceRecovery(
+  id: string,
+  payload: PayrollAdvanceRecoveryPayload,
+) {
+  return apiRequest<Payroll>(
+    `/hr/payrolls/${id}/advance-recovery/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
     },
   );
 }

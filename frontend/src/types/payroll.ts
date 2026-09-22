@@ -180,3 +180,129 @@ export interface PayrollPeriodSummary {
   approved: number;
   paid: number;
 }
+// ================================================================
+// PAYROLL PROCESSING
+// ================================================================
+
+export type PayrollStatus =
+  | "DRAFT"
+  | "CALCULATED"
+  | "APPROVED"
+  | "PAID"
+  | "CANCELLED";
+
+export type PayrollComponentType =
+  | "EARNING"
+  | "DEDUCTION";
+
+export type PayrollComponentSourceType =
+  | "SALARY_STRUCTURE"
+  | "INCENTIVE"
+  | "BONUS"
+  | "MANUAL"
+  | "LOP"
+  | "ADVANCE";
+
+export interface PayrollComponent {
+  id: string;
+  payroll: string;
+  salary_component: string | null;
+
+  code: string;
+  name: string;
+
+  component_type: PayrollComponentType;
+  source_type: PayrollComponentSourceType;
+
+  amount: string;
+  notes: string;
+
+  created_at: string;
+}
+
+export interface PayrollActivity {
+  id: string;
+  payroll: string;
+  activity_type:
+    | "CREATED"
+    | "CALCULATED"
+    | "RECALCULATED"
+    | "COMPONENT_ADDED"
+    | "APPROVED"
+    | "PAID"
+    | "CANCELLED"
+    | "ADVANCE_RECOVERY"
+    | "NOTE";
+
+  description: string;
+  performed_by: string | null;
+  created_at: string;
+}
+
+export interface Payroll {
+  id: string;
+
+  period: string;
+  period_display: string;
+
+  employee: string;
+  employee_id: string;
+  employee_name: string;
+
+  salary_structure: string;
+
+  status: PayrollStatus;
+
+  calendar_days: string;
+  payable_days: string;
+  present_days: string;
+  paid_leave_days: string;
+  unpaid_leave_days: string;
+  lop_days: string;
+
+  base_salary: string;
+  gross_earnings: string;
+  total_deductions: string;
+  lop_deduction: string;
+  advance_recovery: string;
+  net_salary: string;
+
+  calculated_by: string | null;
+  calculated_at: string | null;
+
+  approved_by: string | null;
+  approved_at: string | null;
+
+  paid_by: string | null;
+  paid_at: string | null;
+
+  payment_method: string;
+  payment_reference: string;
+
+  notes: string;
+
+  components: PayrollComponent[];
+  activities: PayrollActivity[];
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePayrollPayload {
+  employee: string;
+  period: string;
+  payable_days?: string | number;
+  lop_days?: string | number;
+  notes?: string;
+}
+
+export interface PayrollAdjustmentPayload {
+  amount: string | number;
+  name?: string;
+  notes?: string;
+}
+
+export interface PayrollAdvanceRecoveryPayload {
+  advance: string;
+  amount?: string | number;
+}
