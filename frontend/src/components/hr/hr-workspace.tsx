@@ -11,6 +11,7 @@ import {
   BadgeCheck,
   BriefcaseBusiness,
   Building2,
+  CalendarCheck2,
   Loader2,
   Plus,
   RefreshCw,
@@ -28,6 +29,10 @@ import {
   getBranches,
   getDepartments,
 } from "@/lib/api/organization";
+
+import {
+  AttendancePanel,
+} from "@/components/hr/attendance-panel";
 
 import {
   DesignationsPanel,
@@ -54,6 +59,7 @@ import type {
 
 type HRView =
   | "EMPLOYEES"
+  | "ATTENDANCE"
   | "DESIGNATIONS";
 
 
@@ -534,15 +540,15 @@ export function HRWorkspace() {
             <p className="mt-2 max-w-3xl text-sm text-slate-500">
               Manage employees,
               organizational assignments,
-              employment status and
-              workforce configuration from
-              one operational workspace.
+              employment status,
+              attendance and workforce
+              configuration from one
+              operational workspace.
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            {view ===
-            "EMPLOYEES" ? (
+          {view === "EMPLOYEES" ? (
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={openCreate}
@@ -551,65 +557,65 @@ export function HRWorkspace() {
                 <Plus className="h-4 w-4" />
                 New Employee
               </button>
-            ) : null}
 
-            <button
-              type="button"
-              onClick={() =>
-                void refreshAll()
-              }
-              disabled={
-                refreshing
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${
-                  refreshing
-                    ? "animate-spin"
-                    : ""
-                }`}
-              />
+              <button
+                type="button"
+                onClick={() =>
+                  void refreshAll()
+                }
+                disabled={refreshing}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${
+                    refreshing
+                      ? "animate-spin"
+                      : ""
+                  }`}
+                />
 
-              Refresh
-            </button>
-          </div>
+                Refresh
+              </button>
+            </div>
+          ) : null}
         </header>
 
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            label="Employees"
-            value={metrics.total}
-            helper="Current filtered workforce"
-            icon={Users}
-          />
+        {view === "EMPLOYEES" ? (
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard
+              label="Employees"
+              value={metrics.total}
+              helper="Current filtered workforce"
+              icon={Users}
+            />
 
-          <SummaryCard
-            label="Active"
-            value={metrics.active}
-            helper="Currently active employees"
-            icon={UserCheck}
-          />
+            <SummaryCard
+              label="Active"
+              value={metrics.active}
+              helper="Currently active employees"
+              icon={UserCheck}
+            />
 
-          <SummaryCard
-            label="On Leave"
-            value={metrics.onLeave}
-            helper="Employees currently on leave"
-            icon={
-              BriefcaseBusiness
-            }
-          />
+            <SummaryCard
+              label="On Leave"
+              value={metrics.onLeave}
+              helper="Employees currently on leave"
+              icon={
+                BriefcaseBusiness
+              }
+            />
 
-          <SummaryCard
-            label="Departments"
-            value={
-              metrics.departments
-            }
-            helper="Represented in current results"
-            icon={Building2}
-          />
-        </section>
+            <SummaryCard
+              label="Departments"
+              value={
+                metrics.departments
+              }
+              helper="Represented in current results"
+              icon={Building2}
+            />
+          </section>
+        ) : null}
 
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
@@ -632,6 +638,27 @@ export function HRWorkspace() {
               <Users className="h-4 w-4" />
               Employees
             </button>
+
+
+            <button
+              type="button"
+              onClick={() =>
+                setView(
+                  "ATTENDANCE",
+                )
+              }
+              className={[
+                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                view ===
+                "ATTENDANCE"
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+              ].join(" ")}
+            >
+              <CalendarCheck2 className="h-4 w-4" />
+              Attendance
+            </button>
+
 
             <button
               type="button"
@@ -658,6 +685,9 @@ export function HRWorkspace() {
         {view ===
         "DESIGNATIONS" ? (
           <DesignationsPanel />
+        ) : view ===
+          "ATTENDANCE" ? (
+          <AttendancePanel />
         ) : (
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5">
@@ -810,6 +840,7 @@ export function HRWorkspace() {
                         {
                           department.name
                         }
+
                         {department.branch ===
                         null
                           ? " (Shared)"
@@ -941,6 +972,7 @@ function EmployeeTable({
   onOpen,
 }: {
   employees: EmployeeListItem[];
+
   onOpen: (
     employeeId: string,
   ) => void;
