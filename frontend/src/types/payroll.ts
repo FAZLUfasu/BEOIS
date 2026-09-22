@@ -133,3 +133,50 @@ export interface ApproveSalaryAdvancePayload {
 export interface DisburseSalaryAdvancePayload {
   payment_reference?: string;
 }
+// ================================================================
+// PAYROLL PERIODS
+// ================================================================
+
+export type PayrollPeriodStatus =
+  | "OPEN"
+  | "PROCESSING"
+  | "CLOSED";
+
+export interface PayrollPeriod {
+  id: string;
+  year: number;
+  month: number;
+  start_date: string;
+  end_date: string;
+  status: PayrollPeriodStatus;
+  notes: string;
+
+  created_by: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePayrollPeriodPayload {
+  year: number;
+  month: number;
+  start_date: string;
+  end_date: string;
+  notes?: string;
+}
+
+export interface PayrollPeriodSummary {
+  period: string;
+  employees: number;
+
+  gross_earnings: string;
+  total_deductions: string;
+  net_payroll: string;
+
+  draft: number;
+  calculated: number;
+  approved: number;
+  paid: number;
+}

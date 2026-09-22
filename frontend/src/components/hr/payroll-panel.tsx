@@ -5,6 +5,10 @@ import {
 } from "react";
 
 import {
+  PayrollPeriodsPanel,
+} from "@/components/hr/payroll-periods-panel";
+
+import {
   SalaryAdvancesPanel,
 } from "@/components/hr/salary-advances-panel";
 
@@ -25,7 +29,8 @@ import {
 type PayrollView =
   | "STRUCTURES"
   | "COMPONENTS"
-  | "ADVANCES";
+  | "ADVANCES"
+  | "PERIODS";
 
 
 export function PayrollPanel() {
@@ -86,32 +91,55 @@ export function PayrollPanel() {
                 >
                 Salary Advances
             </button>
-          <button
-            type="button"
-            onClick={() =>
-              setView("COMPONENTS")
-            }
-            className={[
-              "inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition",
-              view === "COMPONENTS"
-                ? "bg-white text-slate-950 shadow-sm"
-                : "text-slate-600 hover:text-slate-950",
-            ].join(" ")}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Salary Components
-          </button>
+                <button
+                    type="button"
+                    onClick={() =>
+                        setView("PERIODS")
+                    }
+                    className={[
+                        "rounded-xl px-4 py-2.5 text-sm font-semibold transition",
+                        view === "PERIODS"
+                        ? "bg-slate-950 text-white"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                    ].join(" ")}
+                    >
+                    Payroll Periods
+                </button>
+
+            <button
+                type="button"
+                onClick={() =>
+                setView("COMPONENTS")
+                }
+                className={[
+                "inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition",
+                view === "COMPONENTS"
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-600 hover:text-slate-950",
+                ].join(" ")}
+            >
+                <SlidersHorizontal className="h-4 w-4" />
+                Salary Components
+            </button>
+            </div>
         </div>
-      </div>
 
 
-      {view === "STRUCTURES" ? (
-        <SalaryStructuresPanel />
-        ) : view === "COMPONENTS" ? (
-        <SalaryComponentsPanel />
-        ) : (
-        <SalaryAdvancesPanel />
-        )}
-    </section>
-  );
-}
+        {view === "STRUCTURES" ? (
+                <SalaryStructuresPanel />
+                ) : null}
+
+                {view === "COMPONENTS" ? (
+                <SalaryComponentsPanel />
+                ) : null}
+
+                {view === "ADVANCES" ? (
+                <SalaryAdvancesPanel />
+                ) : null}
+
+                {view === "PERIODS" ? (
+                <PayrollPeriodsPanel />
+                ) : null}
+        </section>
+    );
+    }

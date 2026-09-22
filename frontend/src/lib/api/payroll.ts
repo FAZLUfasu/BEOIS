@@ -10,6 +10,9 @@ import type {
   RequestSalaryAdvancePayload,
   ApproveSalaryAdvancePayload,
   DisburseSalaryAdvancePayload,
+  PayrollPeriod,
+  PayrollPeriodSummary,
+  CreatePayrollPeriodPayload,
 } from "@/types/payroll";
 
 
@@ -135,6 +138,58 @@ export async function disburseSalaryAdvance(
     {
       method: "POST",
       body: JSON.stringify(payload),
+    },
+  );
+}
+// ================================================================
+// PAYROLL PERIODS
+// ================================================================
+
+export async function getPayrollPeriods() {
+  return apiRequest<PayrollPeriod[]>(
+    "/hr/payroll-periods/",
+  );
+}
+
+
+export async function getPayrollPeriod(
+  id: string,
+) {
+  return apiRequest<PayrollPeriod>(
+    `/hr/payroll-periods/${id}/`,
+  );
+}
+
+
+export async function createPayrollPeriod(
+  payload: CreatePayrollPeriodPayload,
+) {
+  return apiRequest<PayrollPeriod>(
+    "/hr/payroll-periods/",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+
+export async function getPayrollPeriodSummary(
+  id: string,
+) {
+  return apiRequest<PayrollPeriodSummary>(
+    `/hr/payroll-periods/${id}/summary/`,
+  );
+}
+
+
+export async function closePayrollPeriod(
+  id: string,
+) {
+  return apiRequest<PayrollPeriod>(
+    `/hr/payroll-periods/${id}/close/`,
+    {
+      method: "POST",
     },
   );
 }
