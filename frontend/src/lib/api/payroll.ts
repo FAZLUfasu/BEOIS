@@ -6,6 +6,10 @@ import type {
   SalaryComponent,
   SalaryComponentPayload,
   SalaryStructurePayload,
+  SalaryAdvance,
+  RequestSalaryAdvancePayload,
+  ApproveSalaryAdvancePayload,
+  DisburseSalaryAdvancePayload,
 } from "@/types/payroll";
 
 
@@ -78,6 +82,56 @@ export async function addSalaryStructureComponent(
 ) {
   return apiRequest<EmployeeSalaryStructure>(
     `/hr/salary-structures/${structureId}/components/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+// ================================================================
+// SALARY ADVANCES
+// ================================================================
+
+export async function getSalaryAdvances() {
+  return apiRequest<SalaryAdvance[]>(
+    "/hr/salary-advances/",
+  );
+}
+
+
+export async function requestSalaryAdvance(
+  payload: RequestSalaryAdvancePayload,
+) {
+  return apiRequest<SalaryAdvance>(
+    "/hr/salary-advances/",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+
+export async function approveSalaryAdvance(
+  id: string,
+  payload: ApproveSalaryAdvancePayload,
+) {
+  return apiRequest<SalaryAdvance>(
+    `/hr/salary-advances/${id}/approve/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+
+export async function disburseSalaryAdvance(
+  id: string,
+  payload: DisburseSalaryAdvancePayload,
+) {
+  return apiRequest<SalaryAdvance>(
+    `/hr/salary-advances/${id}/disburse/`,
     {
       method: "POST",
       body: JSON.stringify(payload),
