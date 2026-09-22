@@ -9,6 +9,7 @@ import {
 
 import {
   BadgeCheck,
+  Banknote,
   BriefcaseBusiness,
   Building2,
   CalendarCheck2,
@@ -20,6 +21,10 @@ import {
   UserCheck,
   Users,
 } from "lucide-react";
+
+import {
+  PayrollPanel,
+} from "@/components/hr/payroll-panel";
 
 import {
   getEmployee,
@@ -66,6 +71,7 @@ type HRView =
   | "EMPLOYEES"
   | "ATTENDANCE"
   | "LEAVE"
+  | "PAYROLL"
   | "DESIGNATIONS";
 
 
@@ -547,7 +553,7 @@ export function HRWorkspace() {
               Manage employees,
               organizational assignments,
               employment status,
-              attendance, leave and
+              attendance, leave, payroll and
               workforce configuration
               from one operational
               workspace.
@@ -686,6 +692,21 @@ export function HRWorkspace() {
               Leave
             </button>
 
+            <button
+            type="button"
+            onClick={() =>
+                setView("PAYROLL")
+            }
+            className={[
+                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                view === "PAYROLL"
+                ? "bg-slate-950 text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+            ].join(" ")}
+            >
+            <Banknote className="h-4 w-4" />
+            Payroll
+            </button>
 
             <button
               type="button"
@@ -709,16 +730,19 @@ export function HRWorkspace() {
         </div>
 
 
-        {view ===
-        "DESIGNATIONS" ? (
-          <DesignationsPanel />
-        ) : view ===
-          "ATTENDANCE" ? (
-          <AttendancePanel />
-        ) : view ===
-          "LEAVE" ? (
-          <LeavePanel />
-        ) : (
+       {view ===
+            "DESIGNATIONS" ? (
+            <DesignationsPanel />
+            ) : view ===
+            "ATTENDANCE" ? (
+            <AttendancePanel />
+            ) : view ===
+            "LEAVE" ? (
+            <LeavePanel />
+            ) : view ===
+            "PAYROLL" ? (
+            <PayrollPanel />
+            ) : (
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
