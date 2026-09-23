@@ -34,9 +34,13 @@ class Task(models.Model):
         editable=False,
     )
 
-    title = models.CharField(max_length=255)
+    title = models.CharField(
+        max_length=255,
+    )
 
-    description = models.TextField(blank=True)
+    description = models.TextField(
+        blank=True,
+    )
 
     assigned_to = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -70,6 +74,23 @@ class Task(models.Model):
     )
 
     reminder_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    # Block 4A:
+    # Records when the scheduled reminder was actually sent.
+    # This prevents the reminder engine from creating duplicate
+    # notifications every time it runs.
+    reminder_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    # Block 4A:
+    # Records when the first overdue warning was generated.
+    # This prevents duplicate overdue warnings.
+    overdue_notified_at = models.DateTimeField(
         null=True,
         blank=True,
     )
@@ -122,6 +143,18 @@ class Task(models.Model):
             models.Index(
                 fields=["source_module"],
                 name="notif_task_source_idx",
+            ),
+
+            # Block 4A reminder processing index.
+            models.Index(
+                fields=["reminder_at", "reminder_sent_at"],
+                name="notif_task_reminder_idx",
+            ),
+
+            # Block 4A overdue processing index.
+            models.Index(
+                fields=["due_at", "overdue_notified_at"],
+                name="notif_task_overdue_idx",
             ),
         ]
 
