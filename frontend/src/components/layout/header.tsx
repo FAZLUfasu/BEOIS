@@ -168,8 +168,16 @@ export function Header({
             }
             className="flex items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-slate-50 sm:gap-3"
           >
-            <div className="flex size-9 items-center justify-center rounded-xl bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand)]">
-              {initials}
+            <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand)]">
+              {user?.profile_picture ? (
+                <img
+                  src={user.profile_picture}
+                  alt={`${displayName} profile`}
+                  className="size-full object-cover"
+                />
+              ) : (
+                initials
+              )}
             </div>
 
             <div className="hidden text-left md:block">
@@ -192,9 +200,17 @@ export function Header({
             <div className="absolute right-0 top-[52px] w-[260px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
               <div className="border-b border-slate-100 p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand)]">
-                    {initials}
-                  </div>
+                  <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand)]">
+                      {user?.profile_picture ? (
+                        <img
+                          src={user.profile_picture}
+                          alt={`${displayName} profile`}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        initials
+                      )}
+                    </div>
 
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold text-slate-800">

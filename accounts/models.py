@@ -25,6 +25,12 @@ class User(AbstractUser):
         blank=True,
     )
 
+    profile_picture = models.ImageField(
+        upload_to="profile_pictures/%Y/%m/",
+        blank=True,
+        null=True,
+    )
+
     is_active = models.BooleanField(
         default=True,
     )

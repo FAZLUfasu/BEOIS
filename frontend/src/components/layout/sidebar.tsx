@@ -17,6 +17,7 @@ import {
   Settings,
   ShieldCheck,
   UserRoundCog,
+  UsersRound,
   X,
 } from "lucide-react";
 import type {
@@ -26,23 +27,34 @@ import type {
 import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
 
+
 interface NavigationItem {
   name: string;
   href: string;
   icon: LucideIcon;
   roles?: string[];
+
+  /*
+   * Used for sensitive system-level pages that
+   * must only be visible to a real Django
+   * superuser.
+   */
+  superuserOnly?: boolean;
 }
+
 
 interface NavigationSection {
   label: string;
   items: NavigationItem[];
 }
 
+
 const managementRoles = [
   "SUPER_ADMIN",
   "CHAIRMAN",
   "GENERAL_MANAGER",
 ];
+
 
 const navigation: NavigationSection[] = [
   {
@@ -154,9 +166,16 @@ const navigation: NavigationSection[] = [
           "GENERAL_MANAGER",
         ],
       },
+      {
+        name: "User Management",
+        href: "/settings/users",
+        icon: UsersRound,
+        superuserOnly: true,
+      },
     ],
   },
 ];
+
 
 interface SidebarProps {
   collapsed: boolean;
@@ -164,6 +183,7 @@ interface SidebarProps {
   onToggle: () => void;
   onMobileClose: () => void;
 }
+
 
 export function Sidebar({
   collapsed,
@@ -183,13 +203,37 @@ export function Sidebar({
     ) ?? [],
   );
 
+
   function canSee(
     item: NavigationItem,
   ) {
+    /*
+     * A superuser-only item must never become
+     * visible merely because somebody has the
+     * SUPER_ADMIN role code.
+     *
+     * It requires Django's actual
+     * user.is_superuser flag.
+     */
+    if (item.superuserOnly) {
+      return Boolean(
+        user?.is_superuser,
+      );
+    }
+
+    /*
+     * A real Django superuser can access all
+     * ordinary BEOIS navigation modules.
+     */
     if (user?.is_superuser) {
       return true;
     }
 
+    /*
+     * Navigation entries without role
+     * restrictions are available to any
+     * authenticated user.
+     */
     if (
       !item.roles ||
       item.roles.length === 0
@@ -202,6 +246,7 @@ export function Sidebar({
         roleCodes.has(role),
     );
   }
+
 
   const visibleNavigation =
     navigation
@@ -217,10 +262,12 @@ export function Sidebar({
           section.items.length > 0,
       );
 
+
   return (
     <>
       {mobileOpen && (
         <button
+          type="button"
           aria-label="Close navigation overlay"
           onClick={onMobileClose}
           className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
@@ -270,6 +317,7 @@ export function Sidebar({
             <X size={20} />
           </button>
         </div>
+
 
         <nav className="flex-1 overflow-y-auto px-3 py-5">
           {visibleNavigation.map(
@@ -344,6 +392,7 @@ export function Sidebar({
           )}
         </nav>
 
+
         <div className="border-t border-white/10 p-3">
           <Link
             href="/settings"
@@ -352,12 +401,22 @@ export function Sidebar({
               collapsed
                 ? "justify-center"
                 : "gap-3 px-3",
+              pathname === "/settings"
+                ? "bg-white text-[var(--sidebar)] shadow-sm"
+                : "",
             )}
+            title={
+              collapsed
+                ? "Settings"
+                : undefined
+            }
           >
             <Settings size={19} />
 
             {!collapsed && (
-              <span>Settings</span>
+              <span>
+                Settings
+              </span>
             )}
           </Link>
 

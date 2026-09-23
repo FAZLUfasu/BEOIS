@@ -45,3 +45,20 @@ export async function getCurrentUser() {
 export function logout() {
   clearTokens();
 }
+export interface UpdateProfilePayload {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number: string;
+}
+export async function updateCurrentUser(
+  payload: UpdateProfilePayload,
+) {
+  return apiRequest<CurrentUser>(
+    "/auth/me/",
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}

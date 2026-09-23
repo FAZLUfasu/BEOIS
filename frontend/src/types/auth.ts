@@ -22,6 +22,7 @@ export interface CurrentUser {
   last_name: string;
   full_name: string;
   phone_number: string;
+  profile_picture: string | null;
   is_superuser: boolean;
   roles: UserRole[];
   permissions: string[];
