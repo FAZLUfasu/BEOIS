@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
 import {
   BarChart3,
   BookOpenCheck,
   Building2,
+  CheckSquare2,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -20,13 +22,11 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import type {
-  LucideIcon,
-} from "lucide-react";
+
+import type { LucideIcon } from "lucide-react";
 
 import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
-
 
 interface NavigationItem {
   name: string;
@@ -42,19 +42,16 @@ interface NavigationItem {
   superuserOnly?: boolean;
 }
 
-
 interface NavigationSection {
   label: string;
   items: NavigationItem[];
 }
-
 
 const managementRoles = [
   "SUPER_ADMIN",
   "CHAIRMAN",
   "GENERAL_MANAGER",
 ];
-
 
 const navigation: NavigationSection[] = [
   {
@@ -133,6 +130,22 @@ const navigation: NavigationSection[] = [
           "DEPARTMENT_HEAD",
         ],
       },
+
+      /*
+       * Tasks & Reminders is intentionally available
+       * to every authenticated BEOIS user.
+       *
+       * Managers can create and manage assignments.
+       * Employees can view and update their own tasks.
+       *
+       * The backend remains responsible for enforcing
+       * the actual permissions.
+       */
+      {
+        name: "Tasks & Reminders",
+        href: "/tasks",
+        icon: CheckSquare2,
+      },
     ],
   },
 
@@ -176,14 +189,12 @@ const navigation: NavigationSection[] = [
   },
 ];
 
-
 interface SidebarProps {
   collapsed: boolean;
   mobileOpen: boolean;
   onToggle: () => void;
   onMobileClose: () => void;
 }
-
 
 export function Sidebar({
   collapsed,
@@ -193,16 +204,13 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
 
-  const {
-    user,
-  } = useAuth();
+  const { user } = useAuth();
 
   const roleCodes = new Set(
     user?.roles.map(
       (role) => role.code,
     ) ?? [],
   );
-
 
   function canSee(
     item: NavigationItem,
@@ -247,7 +255,6 @@ export function Sidebar({
     );
   }
 
-
   const visibleNavigation =
     navigation
       .map((section) => ({
@@ -261,7 +268,6 @@ export function Sidebar({
         (section) =>
           section.items.length > 0,
       );
-
 
   return (
     <>
@@ -317,7 +323,6 @@ export function Sidebar({
             <X size={20} />
           </button>
         </div>
-
 
         <nav className="flex-1 overflow-y-auto px-3 py-5">
           {visibleNavigation.map(
@@ -392,10 +397,10 @@ export function Sidebar({
           )}
         </nav>
 
-
         <div className="border-t border-white/10 p-3">
           <Link
             href="/settings"
+            onClick={onMobileClose}
             className={cn(
               "mb-2 flex h-11 items-center rounded-xl text-[13px] font-medium text-blue-50/70 transition hover:bg-white/8 hover:text-white",
               collapsed

@@ -7,6 +7,7 @@ from .views import (
     NotificationMarkAllReadView,
     NotificationMarkReadView,
     NotificationUnreadCountView,
+    TaskAssigneeListView,
     TaskDetailView,
     TaskListCreateView,
 )
@@ -52,5 +53,10 @@ urlpatterns = [
         "mark-all-read/",
         NotificationMarkAllReadView.as_view(),
         name="notification-mark-all-read",
+    ),
+    path(
+        "task-assignees/",
+        TaskAssigneeListView.as_view(),
+        name="task-assignee-list",
     ),
 ]

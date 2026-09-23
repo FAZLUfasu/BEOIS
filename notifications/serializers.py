@@ -2,7 +2,8 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from accounts.models import User
-
+from django.contrib.auth import get_user_model
+from rest_framework import serializers
 from .models import Notification, Task
 from .services import (
     notify_task_assigned,
@@ -255,3 +256,40 @@ class NotificationSerializer(serializers.ModelSerializer):
         ]
 
         read_only_fields = fields
+class TaskAssigneeSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    primary_role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = get_user_model()
+        fields = (
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "full_name",
+            "email",
+            "profile_picture",
+            "is_active",
+            "primary_role",
+        )
+
+    def get_full_name(self, obj):
+        full_name = obj.get_full_name().strip()
+        return full_name or obj.username
+
+    def get_primary_role(self, obj):
+        assignment = (
+            obj.role_assignments
+            .filter(is_active=True)
+            .select_related("role")
+            .first()
+        )
+
+        if assignment and assignment.role:
+            return assignment.role.name
+
+        if obj.is_superuser:
+            return "Super Administrator"
+
+        return "BEOIS User"
