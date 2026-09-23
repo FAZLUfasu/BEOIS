@@ -21,6 +21,11 @@ from .models import (
     UniversityPayment,
 )
 
+from .task_integration import (
+    sync_expense_task,
+    sync_university_payable_task,
+)
+
 
 ZERO = Decimal("0.00")
 
@@ -404,7 +409,7 @@ def post_financial_transaction(
         FinanceActivity.ActivityType.POSTED,
         (
             f"{finance_transaction.transaction_number} posted "
-            f"for ₹{finance_transaction.amount}."
+            f"for Ã¢â€šÂ¹{finance_transaction.amount}."
         ),
         performed_by=posted_by,
         financial_transaction=finance_transaction,
@@ -414,7 +419,7 @@ def post_financial_transaction(
 
 
 # ================================================================
-# ADMISSION PAYMENT → FINANCE
+# ADMISSION PAYMENT Ã¢â€ â€™ FINANCE
 # ================================================================
 
 
@@ -470,7 +475,7 @@ def sync_admission_payment(
 
 
 # ================================================================
-# PAYROLL → FINANCE
+# PAYROLL Ã¢â€ â€™ FINANCE
 # ================================================================
 
 
@@ -537,7 +542,7 @@ def sync_paid_payroll(
 
 
 # ================================================================
-# PARTNER COMMISSION → FINANCE
+# PARTNER COMMISSION Ã¢â€ â€™ FINANCE
 # ================================================================
 
 
@@ -656,7 +661,7 @@ def create_expense(
         FinanceActivity.ActivityType.CREATED,
         (
             f"Expense {expense.expense_number} "
-            f"created for ₹{expense.amount}."
+            f"created for Ã¢â€šÂ¹{expense.amount}."
         ),
         performed_by=requested_by,
         expense=expense,
@@ -810,13 +815,17 @@ def pay_expense(
     _log_finance_activity(
         activity_type,
         (
-            f"₹{amount} paid against "
+            f"Ã¢â€šÂ¹{amount} paid against "
             f"{expense.expense_number}. "
-            f"Outstanding ₹{expense.outstanding_amount}."
+            f"Outstanding Ã¢â€šÂ¹{expense.outstanding_amount}."
         ),
         performed_by=paid_by,
         expense=expense,
     )
+
+    sync_expense_task(expense, performed_by=paid_by)
+
+    sync_expense_task(expense, performed_by=paid_by)
 
     return expense
 
@@ -867,7 +876,7 @@ def create_university_payable(
         (
             f"University payable "
             f"{payable.payable_number} created "
-            f"for ₹{payable.amount}."
+            f"for Ã¢â€šÂ¹{payable.amount}."
         ),
         performed_by=created_by,
         university_payable=payable,
@@ -979,13 +988,17 @@ def pay_university_payable(
     _log_finance_activity(
         activity_type,
         (
-            f"₹{amount} paid against "
+            f"Ã¢â€šÂ¹{amount} paid against "
             f"{payable.payable_number}. "
-            f"Outstanding ₹{payable.outstanding_amount}."
+            f"Outstanding Ã¢â€šÂ¹{payable.outstanding_amount}."
         ),
         performed_by=paid_by,
         university_payable=payable,
     )
+
+    sync_university_payable_task(payable, performed_by=paid_by)
+
+    sync_university_payable_task(payable, performed_by=paid_by)
 
     return payable
 

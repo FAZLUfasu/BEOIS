@@ -28,6 +28,14 @@ from .models import (
 # HELPERS
 # ================================================================
 
+from .task_integration import (
+    notify_leave_approved,
+    notify_leave_rejected,
+    notify_payroll_paid,
+    notify_salary_advance_approved,
+    notify_salary_advance_disbursed,
+)
+
 
 def _log_hr_activity(
     employee,
@@ -856,6 +864,8 @@ def approve_leave(
         approved_by,
     )
 
+    notify_leave_approved(leave_request)
+
     return leave_request
 
 
@@ -1082,6 +1092,8 @@ def cancel_leave(
         description,
         cancelled_by,
     )
+
+    notify_leave_rejected(leave_request)
 
     return leave_request
 
@@ -1810,6 +1822,10 @@ def disburse_salary_advance(
     advance.full_clean()
     advance.save()
 
+    notify_salary_advance_approved(advance)
+
+    notify_salary_advance_disbursed(advance)
+
     return advance
 
 
@@ -2219,9 +2235,9 @@ def calculate_payroll(
         ),
         (
             f"Payroll calculated. "
-            f"Gross: ₹{payroll.gross_earnings}; "
-            f"Deductions: ₹{payroll.total_deductions}; "
-            f"Net: ₹{payroll.net_salary}."
+            f"Gross: â‚¹{payroll.gross_earnings}; "
+            f"Deductions: â‚¹{payroll.total_deductions}; "
+            f"Net: â‚¹{payroll.net_salary}."
         ),
         calculated_by,
     )
@@ -2305,7 +2321,7 @@ def add_payroll_adjustment(
         (
             f"{component.get_component_type_display()} "
             f"component added: {component.name} "
-            f"₹{component.amount}."
+            f"â‚¹{component.amount}."
         ),
         performed_by,
     )
@@ -2578,7 +2594,7 @@ def add_advance_recovery_to_payroll(
         PayrollActivity.ActivityType.ADVANCE_RECOVERY,
         (
             f"Salary advance recovery of "
-            f"₹{amount} added."
+            f"â‚¹{amount} added."
         ),
         performed_by,
     )
@@ -2617,7 +2633,7 @@ def approve_payroll(
         PayrollActivity.ActivityType.APPROVED,
         (
             f"Payroll approved. "
-            f"Net salary: ₹{payroll.net_salary}."
+            f"Net salary: â‚¹{payroll.net_salary}."
         ),
         approved_by,
     )
@@ -2734,11 +2750,13 @@ def pay_payroll(
         PayrollActivity.ActivityType.PAID,
         (
             f"Payroll paid. Net salary: "
-            f"₹{payroll.net_salary}. "
+            f"â‚¹{payroll.net_salary}. "
             f"Reference: {payment_reference}."
         ),
         paid_by,
     )
+
+    notify_payroll_paid(payroll)
 
     return payroll
 

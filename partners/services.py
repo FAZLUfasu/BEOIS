@@ -18,6 +18,11 @@ from .models import (
     PartnerProgramAccess,
 )
 
+from .task_integration import (
+    sync_partner_case_task,
+    sync_partner_issue_task,
+)
+
 
 def _log_partner_activity(partner, activity_type, description, performed_by=None):
     return PartnerActivity.objects.create(
@@ -558,6 +563,12 @@ def link_case_to_admission(case, admission, performed_by=None):
         performed_by,
     )
 
+    sync_partner_case_task(case, performed_by=performed_by)
+
+    sync_partner_case_task(case, performed_by=performed_by)
+
+    sync_partner_case_task(case, performed_by=performed_by)
+
     return case
 
 
@@ -698,8 +709,8 @@ def create_commission_transaction(
         partner,
         PartnerActivity.ActivityType.COMMISSION,
         (
-            f"Commission earned: ₹{commission_amount} "
-            f"on base amount ₹{transaction_obj.base_amount}."
+            f"Commission earned: Ã¢â€šÂ¹{commission_amount} "
+            f"on base amount Ã¢â€šÂ¹{transaction_obj.base_amount}."
         ),
         performed_by,
     )
@@ -732,7 +743,7 @@ def approve_commission(transaction_obj, approved_by=None, notes=""):
         transaction_obj.partner,
         PartnerActivity.ActivityType.COMMISSION,
         (
-            f"Commission ₹{transaction_obj.commission_amount} "
+            f"Commission Ã¢â€šÂ¹{transaction_obj.commission_amount} "
             f"approved."
         ),
         approved_by,
@@ -756,7 +767,7 @@ def mark_commission_payable(transaction_obj, performed_by=None):
         transaction_obj.partner,
         PartnerActivity.ActivityType.COMMISSION,
         (
-            f"Commission ₹{transaction_obj.commission_amount} "
+            f"Commission Ã¢â€šÂ¹{transaction_obj.commission_amount} "
             f"marked payable."
         ),
         performed_by,
@@ -794,7 +805,7 @@ def mark_commission_paid(
         transaction_obj.partner,
         PartnerActivity.ActivityType.PAYMENT,
         (
-            f"Commission ₹{transaction_obj.commission_amount} "
+            f"Commission Ã¢â€šÂ¹{transaction_obj.commission_amount} "
             f"paid. Reference: {payment_reference}."
         ),
         performed_by,
@@ -896,6 +907,10 @@ def change_partner_issue_status(
         description,
         performed_by,
     )
+
+    sync_partner_issue_task(issue, performed_by=performed_by)
+
+    sync_partner_issue_task(issue, performed_by=performed_by)
 
     return issue
 

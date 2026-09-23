@@ -3,6 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import CallLog, Lead, LeadActivity
+from .task_integration import sync_lead_follow_up_task
 
 
 @transaction.atomic
@@ -41,6 +42,8 @@ def assign_lead(lead, user, performed_by=None):
         description=description,
         performed_by=performed_by,
     )
+
+    sync_lead_follow_up_task(lead, assigned_by=performed_by)
 
     return lead
 
@@ -129,6 +132,8 @@ def record_call(
         performed_by=telecaller,
     )
 
+    sync_lead_follow_up_task(lead, assigned_by=telecaller)
+
     return call_log
 
 
@@ -183,6 +188,8 @@ def change_lead_status(
         ),
         performed_by=performed_by,
     )
+
+    sync_lead_follow_up_task(lead, assigned_by=performed_by)
 
     return lead
 

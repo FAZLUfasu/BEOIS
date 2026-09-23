@@ -17,6 +17,12 @@ from .models import (
 )
 
 
+from .task_integration import (
+    complete_all_admission_tasks,
+    sync_admission_tasks,
+)
+
+
 def _log_activity(
     admission,
     activity_type,
@@ -148,6 +154,8 @@ def create_admission_from_lead(
         ),
     )
 
+    sync_admission_tasks(admission, performed_by=created_by)
+
     return admission
 
 
@@ -217,6 +225,8 @@ def change_admission_status(
         description,
         performed_by,
     )
+
+    sync_admission_tasks(admission, performed_by=performed_by)
 
     return admission
 
@@ -394,6 +404,8 @@ def mark_admission_eligible(
         performed_by,
     )
 
+    sync_admission_tasks(admission, performed_by=performed_by)
+
     return admission
 
 
@@ -420,6 +432,8 @@ def mark_admission_not_eligible(
         f"Admission marked not eligible. {reason}",
         performed_by,
     )
+
+    sync_admission_tasks(admission, performed_by=performed_by)
 
     return admission
 
@@ -516,7 +530,7 @@ def record_admission_payment(
         admission,
         AdmissionActivity.ActivityType.PAYMENT,
         (
-            f"Payment received: ₹{amount} "
+            f"Payment received: â‚¹{amount} "
             f"via {payment_method}."
         ),
         received_by,
@@ -590,6 +604,8 @@ def submit_university_application(
         performed_by,
     )
 
+    sync_admission_tasks(admission, performed_by=performed_by)
+
     return admission
 
 
@@ -640,6 +656,8 @@ def record_enrollment(
         performed_by,
     )
 
+    sync_admission_tasks(admission, performed_by=performed_by)
+
     return admission
 
 
@@ -678,6 +696,8 @@ def complete_admission(
         description,
         performed_by,
     )
+
+    complete_all_admission_tasks(admission)
 
     return admission
 

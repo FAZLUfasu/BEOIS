@@ -13,6 +13,11 @@ from .models import (
 
 
 # ================================================================
+# CREATE STUDENT)
+from .task_integration import sync_student_process_task
+
+
+# ================================================================
 # CREATE STUDENT FROM COMPLETED ADMISSION
 # ================================================================
 
@@ -163,6 +168,8 @@ def create_student_process(
         performed_by=performed_by,
     )
 
+    sync_student_process_task(process, performed_by=performed_by)
+
     return process
 
 
@@ -221,6 +228,9 @@ def initialize_student_processes(
                 ),
                 performed_by=performed_by,
             )
+
+    for process in created_processes:
+        sync_student_process_task(process, performed_by=performed_by)
 
     return created_processes
 
@@ -287,6 +297,8 @@ def change_student_process_status(
         description=description,
         performed_by=performed_by,
     )
+
+    sync_student_process_task(process, performed_by=performed_by)
 
     return process
 
