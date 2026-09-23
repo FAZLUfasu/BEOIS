@@ -2,8 +2,8 @@ import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
-
+from django.db import models, transaction
+from core.services import build_next_identifier
 from admissions.models import Admission, Institution, Program
 
 
@@ -250,28 +250,23 @@ class Student(models.Model):
     def save(self, *args, **kwargs):
 
         if not self.student_id:
+            with transaction.atomic():
 
-            latest = (
-                Student.objects
-                .exclude(student_id="")
-                .order_by("-created_at")
-                .first()
+                self.student_id = build_next_identifier(
+                    Student.objects.all(),
+                    "student_id",
+                    "student",
+                )
+
+                super().save(
+                    *args,
+                    **kwargs,
+                )
+        else:
+            super().save(
+                *args,
+                **kwargs,
             )
-
-            next_number = 1
-
-            if latest and latest.student_id:
-                try:
-                    next_number = (
-                        int(latest.student_id.split("-")[-1]) + 1
-                    )
-                except (ValueError, IndexError):
-                    next_number = 1
-
-            self.student_id = f"ST-{next_number:05d}"
-
-        super().save(*args, **kwargs)
-
 
 # ================================================================
 # EDUCATION PROCESS

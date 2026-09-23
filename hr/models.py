@@ -4,8 +4,9 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-
+from django.db import models, transaction
 from organization.models import Branch, Department
+from core.services import build_next_identifier
 
 
 class Designation(models.Model):
@@ -341,43 +342,23 @@ class Employee(models.Model):
     @staticmethod
     def generate_employee_id():
         """
-        Generates IDs such as:
+        Generate the next Employee ID using BEOIS System Settings.
 
-        EMP-00001
-        EMP-00002
-        EMP-00003
+        This method should be called from inside transaction.atomic()
+        when creating a new employee.
         """
 
-        employee_ids = Employee.objects.filter(
-            employee_id__startswith="EMP-"
-        ).values_list(
+        return build_next_identifier(
+            Employee.objects.all(),
             "employee_id",
-            flat=True,
+            "employee",
         )
-
-        highest_number = 0
-
-        for employee_id in employee_ids:
-            match = re.fullmatch(
-                r"EMP-(\d+)",
-                employee_id or "",
-            )
-
-            if match:
-                number = int(match.group(1))
-                highest_number = max(
-                    highest_number,
-                    number,
-                )
-
-        return f"EMP-{highest_number + 1:05d}"
 
     def save(self, *args, **kwargs):
         """
-        Automatically generates an Employee ID
-        when creating a new employee.
+        Automatically generate an Employee ID for new employees.
 
-        Existing employee IDs are preserved.
+        Existing employee IDs are permanently preserved.
         """
 
         self.full_clean(
@@ -388,6 +369,7 @@ class Employee(models.Model):
 
         if not self.employee_id:
             with transaction.atomic():
+
                 self.employee_id = self.generate_employee_id()
 
                 super().save(

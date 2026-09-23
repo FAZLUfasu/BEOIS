@@ -2,7 +2,8 @@ import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
+from core.services import build_next_identifier
 
 
 # ================================================================
@@ -520,27 +521,23 @@ class Admission(models.Model):
     def save(self, *args, **kwargs):
 
         if not self.admission_id:
+            with transaction.atomic():
 
-            latest = (
-                Admission.objects
-                .exclude(admission_id="")
-                .order_by("-created_at")
-                .first()
+                self.admission_id = build_next_identifier(
+                    Admission.objects.all(),
+                    "admission_id",
+                    "admission",
+                )
+
+                super().save(
+                    *args,
+                    **kwargs,
+                )
+        else:
+            super().save(
+                *args,
+                **kwargs,
             )
-
-            next_number = 1
-
-            if latest and latest.admission_id:
-                try:
-                    next_number = (
-                        int(latest.admission_id.split("-")[-1]) + 1
-                    )
-                except (ValueError, IndexError):
-                    next_number = 1
-
-            self.admission_id = f"AD-{next_number:05d}"
-
-        super().save(*args, **kwargs)
 
 
 # ================================================================

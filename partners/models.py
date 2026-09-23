@@ -3,8 +3,8 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
-
+from django.db import models, transaction
+from core.services import build_next_identifier
 from admissions.models import Admission, Institution, Program
 
 
@@ -213,27 +213,23 @@ class Partner(models.Model):
     def save(self, *args, **kwargs):
 
         if not self.partner_id:
+            with transaction.atomic():
 
-            latest = (
-                Partner.objects
-                .exclude(partner_id="")
-                .order_by("-created_at")
-                .first()
+                self.partner_id = build_next_identifier(
+                    Partner.objects.all(),
+                    "partner_id",
+                    "partner",
+                )
+
+                super().save(
+                    *args,
+                    **kwargs,
+                )
+        else:
+            super().save(
+                *args,
+                **kwargs,
             )
-
-            next_number = 1
-
-            if latest and latest.partner_id:
-                try:
-                    next_number = (
-                        int(latest.partner_id.split("-")[-1]) + 1
-                    )
-                except (ValueError, IndexError):
-                    next_number = 1
-
-            self.partner_id = f"BPT-{next_number:05d}"
-
-        super().save(*args, **kwargs)
 
 
 # ================================================================
@@ -573,28 +569,23 @@ class PartnerCase(models.Model):
     def save(self, *args, **kwargs):
 
         if not self.case_id:
+            with transaction.atomic():
 
-            latest = (
-                PartnerCase.objects
-                .exclude(case_id="")
-                .order_by("-created_at")
-                .first()
+                self.case_id = build_next_identifier(
+                    PartnerCase.objects.all(),
+                    "case_id",
+                    "partner_case",
+                )
+
+                super().save(
+                    *args,
+                    **kwargs,
+                )
+        else:
+            super().save(
+                *args,
+                **kwargs,
             )
-
-            next_number = 1
-
-            if latest and latest.case_id:
-                try:
-                    next_number = (
-                        int(latest.case_id.split("-")[-1]) + 1
-                    )
-                except (ValueError, IndexError):
-                    next_number = 1
-
-            self.case_id = f"PC-{next_number:05d}"
-
-        super().save(*args, **kwargs)
-
 
 # ================================================================
 # PARTNER COMMISSION RULE

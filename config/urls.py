@@ -78,4 +78,9 @@ urlpatterns = [
         include("finance.urls"),
     ),
 
+    path(
+        "api/settings/",
+        include("core.urls"),
+    ),
+
 ]

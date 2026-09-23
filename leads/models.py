@@ -2,8 +2,9 @@ import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
+from core.services import build_next_identifier
 
 
 # ================================================================
@@ -230,28 +231,23 @@ class Lead(models.Model):
     def save(self, *args, **kwargs):
 
         if not self.lead_id:
+            with transaction.atomic():
 
-            latest = (
-                Lead.objects
-                .exclude(lead_id="")
-                .order_by("-created_at")
-                .first()
+                self.lead_id = build_next_identifier(
+                    Lead.objects.all(),
+                    "lead_id",
+                    "lead",
+                )
+
+                super().save(
+                    *args,
+                    **kwargs,
+                )
+        else:
+            super().save(
+                *args,
+                **kwargs,
             )
-
-            next_number = 1
-
-            if latest and latest.lead_id:
-                try:
-                    next_number = (
-                        int(latest.lead_id.split("-")[-1]) + 1
-                    )
-                except (ValueError, IndexError):
-                    next_number = 1
-
-            self.lead_id = f"LD-{next_number:05d}"
-
-        super().save(*args, **kwargs)
-
 
 # ================================================================
 # LEAD ACTIVITY
