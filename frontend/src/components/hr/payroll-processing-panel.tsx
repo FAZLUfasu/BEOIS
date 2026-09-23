@@ -10,6 +10,8 @@ import {
 import {
   Banknote,
   Calculator,
+  CheckCircle2,
+  CreditCard,
   Eye,
   Loader2,
   Plus,
@@ -17,6 +19,14 @@ import {
   Search,
   X,
 } from "lucide-react";
+
+import {
+  PayrollPaymentDialog,
+} from "@/components/hr/payroll-payment-dialog";
+
+import {
+  useAuth,
+} from "@/lib/auth/auth-context";
 
 import {
   PayrollAdjustmentDialog,
@@ -36,6 +46,7 @@ import {
 } from "@/lib/api/employees";
 
 import {
+  approvePayroll,
   calculatePayroll,
   getPayrolls,
   getPayrollPeriods,
@@ -59,6 +70,21 @@ type StatusFilter =
   | PayrollStatus;
 
 export function PayrollProcessingPanel() {
+  const { hasRole } = useAuth();
+
+  const canApprove = hasRole(
+    "SUPER_ADMIN",
+    "CHAIRMAN",
+    "GENERAL_MANAGER",
+    "HR",
+  );
+
+  const canPay = hasRole(
+    "SUPER_ADMIN",
+    "CHAIRMAN",
+    "GENERAL_MANAGER",
+  );
+
   const [payrolls, setPayrolls] =
     useState<Payroll[]>([]);
 
@@ -115,6 +141,16 @@ export function PayrollProcessingPanel() {
     calculatingId,
     setCalculatingId,
   ] = useState<string | null>(null);
+
+  const [
+    approvingId,
+    setApprovingId,
+  ] = useState<string | null>(null);
+
+  const [
+    paymentTarget,
+    setPaymentTarget,
+  ] = useState<Payroll | null>(null);
 
   const loadData =
     useCallback(async () => {
@@ -280,6 +316,42 @@ export function PayrollProcessingPanel() {
       );
     } finally {
       setCalculatingId(null);
+    }
+  }
+
+  async function handleApprove(
+    payroll: Payroll,
+  ) {
+    const confirmed = window.confirm(
+      `Approve payroll for ${
+        payroll.employee_name ||
+        payroll.employee_id
+      }?\n\nNet salary: ₹${formatMoney(
+        payroll.net_salary,
+      )}\n\nAfter approval, payroll adjustments can no longer be changed.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setApprovingId(payroll.id);
+    setError("");
+
+    try {
+      const saved = await approvePayroll(
+        payroll.id,
+      );
+
+      updatePayroll(saved);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to approve payroll.",
+      );
+    } finally {
+      setApprovingId(null);
     }
   }
 
@@ -582,6 +654,49 @@ export function PayrollProcessingPanel() {
                                 : "Recalculate"}
                             </button>
                           ) : null}
+
+                          {canApprove &&
+                          payroll.status ===
+                            "CALCULATED" ? (
+                            <button
+                              type="button"
+                              disabled={
+                                approvingId ===
+                                payroll.id
+                              }
+                              onClick={() =>
+                                void handleApprove(
+                                  payroll,
+                                )
+                              }
+                              className={actionClass}
+                            >
+                              {approvingId ===
+                              payroll.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              )}
+                              Approve
+                            </button>
+                          ) : null}
+
+                          {canPay &&
+                          payroll.status ===
+                            "APPROVED" ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPaymentTarget(
+                                  payroll,
+                                )
+                              }
+                              className={actionClass}
+                            >
+                              <CreditCard className="h-3.5 w-3.5" />
+                              Pay
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -619,6 +734,19 @@ export function PayrollProcessingPanel() {
         onCalculate={(payroll) =>
           void handleCalculate(payroll)
         }
+        approving={
+          approvingId === detailTarget?.id
+        }
+        canApprove={canApprove}
+        canPay={canPay}
+        onApprove={(payroll) =>
+          void handleApprove(payroll)
+        }
+        onPay={() => {
+          if (detailTarget) {
+            setPaymentTarget(detailTarget);
+          }
+        }}
         onAdjustment={
           setAdjustmentKind
         }
@@ -658,6 +786,17 @@ export function PayrollProcessingPanel() {
           setRecoveryTarget(null);
         }}
       />
+
+      <PayrollPaymentDialog
+        payroll={paymentTarget}
+        onClose={() =>
+          setPaymentTarget(null)
+        }
+        onSaved={(saved) => {
+          updatePayroll(saved);
+          setPaymentTarget(null);
+        }}
+      />
     </div>
   );
 }
@@ -665,17 +804,29 @@ export function PayrollProcessingPanel() {
 function PayrollDetailDrawer({
   payroll,
   calculating,
+  approving,
+  canApprove,
+  canPay,
   onClose,
   onCalculate,
+  onApprove,
+  onPay,
   onAdjustment,
   onAdvanceRecovery,
 }: {
   payroll: Payroll | null;
   calculating: boolean;
+  approving: boolean;
+  canApprove: boolean;
+  canPay: boolean;
   onClose: () => void;
   onCalculate: (
     payroll: Payroll,
   ) => void;
+  onApprove: (
+    payroll: Payroll,
+  ) => void;
+  onPay: () => void;
   onAdjustment: (
     kind: PayrollAdjustmentKind,
   ) => void;
@@ -771,6 +922,39 @@ function PayrollDetailDrawer({
                   : "Recalculate"}
               </button>
             ) : null}
+
+            {canApprove &&
+            payroll.status ===
+              "CALCULATED" ? (
+              <button
+                type="button"
+                disabled={approving}
+                onClick={() =>
+                  onApprove(payroll)
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+              >
+                {approving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                Approve Payroll
+              </button>
+            ) : null}
+
+            {canPay &&
+            payroll.status ===
+              "APPROVED" ? (
+              <button
+                type="button"
+                onClick={onPay}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                <CreditCard className="h-4 w-4" />
+                Record Payment
+              </button>
+            ) : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -845,6 +1029,65 @@ function PayrollDetailDrawer({
               <SmallStat
                 label="LOP"
                 value={payroll.lop_days}
+              />
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200">
+            <div className="border-b border-slate-200 p-4">
+              <h4 className="font-bold text-slate-950">
+                Approval & Payment
+              </h4>
+            </div>
+
+            <div className="grid gap-4 p-4 sm:grid-cols-2">
+              <LifecycleItem
+                label="Approved"
+                value={
+                  payroll.approved_at
+                    ? formatDateTime(
+                        payroll.approved_at,
+                      )
+                    : "Not approved"
+                }
+              />
+
+              <LifecycleItem
+                label="Approved By"
+                value={
+                  payroll.approved_by || "—"
+                }
+              />
+
+              <LifecycleItem
+                label="Paid"
+                value={
+                  payroll.paid_at
+                    ? formatDateTime(
+                        payroll.paid_at,
+                      )
+                    : "Not paid"
+                }
+              />
+
+              <LifecycleItem
+                label="Paid By"
+                value={payroll.paid_by || "—"}
+              />
+
+              <LifecycleItem
+                label="Payment Method"
+                value={
+                  payroll.payment_method || "—"
+                }
+              />
+
+              <LifecycleItem
+                label="Payment Reference"
+                value={
+                  payroll.payment_reference ||
+                  "—"
+                }
               />
             </div>
           </section>
@@ -1107,6 +1350,26 @@ function SmallStat({
         {label}
       </p>
       <p className="mt-1 font-bold text-slate-900">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function LifecycleItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+
+      <p className="mt-1 break-words text-sm font-semibold text-slate-800">
         {value}
       </p>
     </div>

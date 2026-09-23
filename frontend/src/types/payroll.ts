@@ -306,3 +306,11 @@ export interface PayrollAdvanceRecoveryPayload {
   advance: string;
   amount?: string | number;
 }
+// ================================================================
+// PAYROLL APPROVAL & PAYMENT
+// ================================================================
+
+export interface PayPayrollPayload {
+  payment_method: string;
+  payment_reference: string;
+}

@@ -17,6 +17,7 @@ import type {
   CreatePayrollPayload,
   PayrollAdjustmentPayload,
   PayrollAdvanceRecoveryPayload,
+  PayPayrollPayload,
 } from "@/types/payroll";
 
 
@@ -309,6 +310,33 @@ export async function addPayrollAdvanceRecovery(
 ) {
   return apiRequest<Payroll>(
     `/hr/payrolls/${id}/advance-recovery/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+// ================================================================
+// PAYROLL APPROVAL & PAYMENT
+// ================================================================
+
+export async function approvePayroll(
+  id: string,
+) {
+  return apiRequest<Payroll>(
+    `/hr/payrolls/${id}/approve/`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function payPayroll(
+  id: string,
+  payload: PayPayrollPayload,
+) {
+  return apiRequest<Payroll>(
+    `/hr/payrolls/${id}/pay/`,
     {
       method: "POST",
       body: JSON.stringify(payload),
