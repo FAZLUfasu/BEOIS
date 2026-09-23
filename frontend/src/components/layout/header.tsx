@@ -141,7 +141,7 @@ export function Header({
           </kbd>
         </div>
       </div>
-
+      
       <div className="ml-4 flex items-center gap-2 sm:gap-3">
         <button
           type="button"
@@ -231,13 +231,17 @@ export function Header({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                >
-                  <UserRound size={17} />
-                  My profile
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push("/profile");
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  >
+                    <UserRound size={17} />
+                    My profile
+                  </button>
 
                 <button
                   type="button"
