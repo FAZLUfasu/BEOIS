@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "partners",
     "finance",
     "dashboard",
+    "notifications",
 ]
 
 MIDDLEWARE = [

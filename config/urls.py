@@ -84,6 +84,10 @@ urlpatterns = [
         "api/settings/",
         include("core.urls"),
     ),
+    path(
+        "api/notifications/",
+        include("notifications.urls"),
+    ),
 
 ]
 if settings.DEBUG:
