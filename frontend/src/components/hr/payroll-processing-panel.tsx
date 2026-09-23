@@ -9,10 +9,12 @@ import {
 
 import {
   Banknote,
+  BarChart3,
   Calculator,
   CheckCircle2,
   CreditCard,
   Eye,
+  FileText,
   Loader2,
   Plus,
   RefreshCw,
@@ -23,6 +25,14 @@ import {
 import {
   PayrollPaymentDialog,
 } from "@/components/hr/payroll-payment-dialog";
+
+import {
+  PayrollPayslipDialog,
+} from "@/components/hr/payroll-payslip-dialog";
+
+import {
+  PayrollPeriodSummaryDialog,
+} from "@/components/hr/payroll-period-summary-dialog";
 
 import {
   useAuth,
@@ -151,6 +161,16 @@ export function PayrollProcessingPanel() {
     paymentTarget,
     setPaymentTarget,
   ] = useState<Payroll | null>(null);
+
+  const [
+    payslipTarget,
+    setPayslipTarget,
+  ] = useState<Payroll | null>(null);
+
+  const [
+    summaryPeriod,
+    setSummaryPeriod,
+  ] = useState<PayrollPeriod | null>(null);
 
   const loadData =
     useCallback(async () => {
@@ -382,6 +402,30 @@ export function PayrollProcessingPanel() {
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
+          </button>
+
+          <button
+            type="button"
+            disabled={periodFilter === "ALL"}
+            onClick={() => {
+              const selected = periods.find(
+                (period) =>
+                  period.id === periodFilter,
+              );
+
+              if (selected) {
+                setSummaryPeriod(selected);
+              }
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            title={
+              periodFilter === "ALL"
+                ? "Select a payroll period first"
+                : "View payroll period summary"
+            }
+          >
+            <BarChart3 className="h-4 w-4" />
+            Period Summary
           </button>
 
           <button
@@ -697,6 +741,22 @@ export function PayrollProcessingPanel() {
                               Pay
                             </button>
                           ) : null}
+
+                          {payroll.status ===
+                          "PAID" ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPayslipTarget(
+                                  payroll,
+                                )
+                              }
+                              className={actionClass}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              Payslip
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -745,6 +805,11 @@ export function PayrollProcessingPanel() {
         onPay={() => {
           if (detailTarget) {
             setPaymentTarget(detailTarget);
+          }
+        }}
+        onPayslip={() => {
+          if (detailTarget) {
+            setPayslipTarget(detailTarget);
           }
         }}
         onAdjustment={
@@ -797,6 +862,20 @@ export function PayrollProcessingPanel() {
           setPaymentTarget(null);
         }}
       />
+
+      <PayrollPayslipDialog
+        payroll={payslipTarget}
+        onClose={() =>
+          setPayslipTarget(null)
+        }
+      />
+
+      <PayrollPeriodSummaryDialog
+        period={summaryPeriod}
+        onClose={() =>
+          setSummaryPeriod(null)
+        }
+      />
     </div>
   );
 }
@@ -811,6 +890,7 @@ function PayrollDetailDrawer({
   onCalculate,
   onApprove,
   onPay,
+  onPayslip,
   onAdjustment,
   onAdvanceRecovery,
 }: {
@@ -827,6 +907,7 @@ function PayrollDetailDrawer({
     payroll: Payroll,
   ) => void;
   onPay: () => void;
+  onPayslip: () => void;
   onAdjustment: (
     kind: PayrollAdjustmentKind,
   ) => void;
@@ -953,6 +1034,18 @@ function PayrollDetailDrawer({
               >
                 <CreditCard className="h-4 w-4" />
                 Record Payment
+              </button>
+            ) : null}
+
+            {payroll.status ===
+            "PAID" ? (
+              <button
+                type="button"
+                onClick={onPayslip}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                <FileText className="h-4 w-4" />
+                View Payslip
               </button>
             ) : null}
           </div>
