@@ -216,3 +216,108 @@ export interface ExceptionIntelligence {
     operational_expenses: OperationalExpenseItem[];
   };
 }
+
+export interface TaskIntelligenceItem {
+  task_id: string;
+  title: string;
+  status: string;
+  priority: string;
+  source_module: string;
+  source_module_label: string;
+  source_label: string;
+  assigned_to: {
+    id: string;
+    name: string;
+  };
+  due_at: string | null;
+  created_at: string;
+  is_overdue: boolean;
+  action_url: string;
+}
+
+export interface TaskModuleWorkload {
+  module: string;
+  label: string;
+  open_tasks: number;
+  overdue_tasks: number;
+  high_tasks: number;
+  urgent_tasks: number;
+}
+
+export interface TaskDepartmentWorkload {
+  department: string;
+  open_tasks: number;
+  overdue_tasks: number;
+  high_tasks: number;
+  urgent_tasks: number;
+}
+
+export interface TaskStaffWorkload {
+  user_id: string;
+  employee_id: string | null;
+  name: string;
+  department: string | null;
+  branch: string | null;
+  open_tasks: number;
+  overdue_tasks: number;
+  high_open: number;
+  urgent_open: number;
+  created_in_period: number;
+  completed_in_period: number;
+  created_cohort_completion_rate: number;
+}
+
+export interface TaskIntelligence {
+  period: IntelligencePeriod;
+
+  summary: {
+    open_tasks: number;
+    overdue_tasks: number;
+    due_today: number;
+    due_next_7_days: number;
+    high_open: number;
+    urgent_open: number;
+    without_due_date: number;
+  };
+
+  period_activity: {
+    created: number;
+    completed: number;
+    created_cohort_total: number;
+    created_cohort_completed: number;
+    created_cohort_completion_rate: number;
+  };
+
+  status_breakdown: {
+    status: string;
+    label: string;
+    count: number;
+  }[];
+
+  open_priority_breakdown: {
+    priority: string;
+    label: string;
+    count: number;
+  }[];
+
+  module_workload: TaskModuleWorkload[];
+  department_workload: TaskDepartmentWorkload[];
+  staff_workload: TaskStaffWorkload[];
+
+  aging: {
+    "0_2_days": number;
+    "3_7_days": number;
+    "8_14_days": number;
+    "15_30_days": number;
+    "31_plus_days": number;
+  };
+
+  upcoming_deadlines: TaskIntelligenceItem[];
+  oldest_overdue: TaskIntelligenceItem[];
+
+  attention: {
+    urgent_overdue: number;
+    overdue_7_plus_days: number;
+    due_next_24_hours: number;
+  };
+}

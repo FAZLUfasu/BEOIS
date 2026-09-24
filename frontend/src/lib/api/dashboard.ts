@@ -8,6 +8,7 @@ import type {
   IntelligenceTrends,
   PartnerIntelligence,
   StaffIntelligence,
+  TaskIntelligence,
 } from "@/types/dashboard";
 
 export interface DashboardPeriod {
@@ -102,6 +103,16 @@ export function getExceptionIntelligence(
 ) {
   return apiRequest<ExceptionIntelligence>(
     `/dashboard/intelligence/exceptions/${createPeriodQuery(
+      period,
+    )}`,
+  );
+}
+
+export function getTaskIntelligence(
+  period?: DashboardPeriod,
+) {
+  return apiRequest<TaskIntelligence>(
+    `/dashboard/intelligence/tasks/${createPeriodQuery(
       period,
     )}`,
   );

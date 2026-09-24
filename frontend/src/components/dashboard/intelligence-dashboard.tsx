@@ -32,6 +32,7 @@ import {
 } from "recharts";
 
 import { AttentionCentre } from "@/components/dashboard/attention-centre";
+import { TaskIntelligencePanel } from "@/components/dashboard/task-intelligence-panel";
 import {
   InstitutionPerformanceTable,
   PartnerPerformanceTable,
@@ -46,6 +47,7 @@ import {
   getIntelligenceTrends,
   getPartnerIntelligence,
   getStaffIntelligence,
+  getTaskIntelligence,
 } from "@/lib/api/dashboard";
 
 import type {
@@ -56,6 +58,7 @@ import type {
   IntelligenceTrends,
   PartnerIntelligence,
   StaffIntelligence,
+  TaskIntelligence,
 } from "@/types/dashboard";
 
 function localDateString(date: Date) {
@@ -298,6 +301,11 @@ export function IntelligenceDashboard() {
       null,
     );
 
+  const [taskIntelligence, setTaskIntelligence] =
+    useState<TaskIntelligence | null>(
+      null,
+    );
+
   const [loading, setLoading] =
     useState(true);
 
@@ -335,6 +343,7 @@ export function IntelligenceDashboard() {
           institutionResponse,
           partnerResponse,
           staffResponse,
+          taskResponse,
         ] = await Promise.all([
           getIntelligenceOverview(
             period,
@@ -355,6 +364,9 @@ export function IntelligenceDashboard() {
             period,
           ),
           getStaffIntelligence(
+            period,
+          ),
+          getTaskIntelligence(
             period,
           ),
         ]);
@@ -385,6 +397,10 @@ export function IntelligenceDashboard() {
 
         setStaff(
           staffResponse,
+        );
+
+        setTaskIntelligence(
+          taskResponse,
         );
       } catch {
         setError(
@@ -435,7 +451,8 @@ export function IntelligenceDashboard() {
     !exceptions ||
     !institutions ||
     !partners ||
-    !staff
+    !staff ||
+    !taskIntelligence
   ) {
     return (
       <div className="rounded-2xl border border-red-100 bg-white p-10 text-center">
@@ -623,6 +640,10 @@ export function IntelligenceDashboard() {
           }
         />
       </div>
+
+      <TaskIntelligencePanel
+        data={taskIntelligence}
+      />
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
