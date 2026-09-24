@@ -45,6 +45,10 @@ import {
   LeadFormModal,
 } from "@/components/leads/lead-form-modal";
 
+import {
+  LeadCounsellingPanel,
+} from "@/components/leads/lead-counselling-panel";
+
 import type {
   CallOutcome,
   LeadChannel,
@@ -93,6 +97,9 @@ function statusClasses(
 
     case "CONTACTED":
       return "bg-cyan-50 text-cyan-700";
+
+    case "INTERESTED":
+      return "bg-teal-50 text-teal-700";
 
     case "FOLLOW_UP":
       return "bg-amber-50 text-amber-700";
@@ -972,6 +979,10 @@ export function LeadsWorkspace() {
                       Contacted
                     </option>
 
+                    <option value="INTERESTED">
+                      Interested
+                    </option>
+
                     <option value="FOLLOW_UP">
                       Follow Up
                     </option>
@@ -1451,6 +1462,24 @@ export function LeadsWorkspace() {
                           )}
                         </section>
 
+                        <LeadCounsellingPanel
+                          key={
+                            `${selected.id}-${selected.updated_at}-${selected.status}`
+                          }
+                          lead={
+                            selected
+                          }
+                          onLeadChanged={
+                            async (
+                              updated,
+                            ) => {
+                              await refreshAfterMutation(
+                                updated,
+                              );
+                            }
+                          }
+                        />
+
                         {/* RECORD CALL */}
 
                         <form
@@ -1659,17 +1688,35 @@ export function LeadsWorkspace() {
                                 Contacted
                               </option>
 
+                              <option value="INTERESTED">
+                                Interested
+                              </option>
+
                               <option value="FOLLOW_UP">
                                 Follow
                                 Up
                               </option>
 
-                              <option value="QUALIFIED">
+                              <option
+                                value="QUALIFIED"
+                                disabled={
+                                  selected.status !==
+                                  "QUALIFIED"
+                                }
+                              >
                                 Qualified
+                                (use counselling)
                               </option>
 
-                              <option value="CONVERTED">
+                              <option
+                                value="CONVERTED"
+                                disabled={
+                                  selected.status !==
+                                  "CONVERTED"
+                                }
+                              >
                                 Converted
+                                (Admissions only)
                               </option>
 
                               <option value="NOT_INTERESTED">

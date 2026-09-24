@@ -8,14 +8,22 @@ import type {
   DistributeLeadsPayload,
   DistributeLeadsResponse,
   LeadActivity,
+  LeadAppointment,
+  LeadCourseOption,
+  LeadCourseOptionFilters,
   LeadDetail,
   LeadFilters,
   LeadFormPayload,
   LeadListItem,
+  LeadQualification,
   LeadUpdatePayload,
   LeadWorkloadResponse,
   RecordCallPayload,
   RecordCallResponse,
+  SaveLeadQualificationPayload,
+  ScheduleLeadAppointmentPayload,
+  UpdateLeadAppointmentStatusPayload,
+  VisitBranch,
 } from "@/types/leads";
 function buildQuery(filters: LeadFilters = {}) {
   const params = new URLSearchParams();
@@ -155,6 +163,119 @@ export function getFollowUps() {
 export function getOverdueLeads() {
   return apiRequest<LeadListItem[]>(
     "/leads/overdue/",
+  );
+}
+
+/* ============================================================
+   COUNSELLING / QUALIFICATION
+============================================================ */
+
+export function saveLeadQualification(
+  id: string,
+  payload: SaveLeadQualificationPayload,
+) {
+  return apiRequest<LeadQualification>(
+    `/leads/${id}/qualification/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function getLeadCourseOptions(
+  id: string,
+  filters: LeadCourseOptionFilters = {},
+) {
+  const params = new URLSearchParams();
+
+  if (filters.institution) {
+    params.set(
+      "institution",
+      filters.institution,
+    );
+  }
+
+  if (filters.level) {
+    params.set(
+      "level",
+      filters.level,
+    );
+  }
+
+  if (filters.study_mode) {
+    params.set(
+      "study_mode",
+      filters.study_mode,
+    );
+  }
+
+  if (filters.search) {
+    params.set(
+      "search",
+      filters.search,
+    );
+  }
+
+  const query = params.toString();
+
+  return apiRequest<LeadCourseOption[]>(
+    `/leads/${id}/course-options/${
+      query ? `?${query}` : ""
+    }`,
+  );
+}
+
+export function qualifyLead(
+  id: string,
+) {
+  return apiRequest<LeadDetail>(
+    `/leads/${id}/qualify/`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export function getVisitBranches() {
+  return apiRequest<VisitBranch[]>(
+    "/leads/visit-branches/",
+  );
+}
+
+export function getLeadAppointments(
+  id: string,
+) {
+  return apiRequest<LeadAppointment[]>(
+    `/leads/${id}/appointments/`,
+  );
+}
+
+export function scheduleLeadAppointment(
+  id: string,
+  payload: ScheduleLeadAppointmentPayload,
+) {
+  return apiRequest<LeadAppointment>(
+    `/leads/${id}/appointments/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function updateLeadAppointmentStatus(
+  id: string,
+  appointmentId: string,
+  payload: UpdateLeadAppointmentStatusPayload,
+) {
+  return apiRequest<LeadAppointment>(
+    `/leads/${id}/appointments/${appointmentId}/status/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
   );
 }
 /* ============================================================

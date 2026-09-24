@@ -258,6 +258,10 @@ class ProgramViewSet(
             .select_related(
                 "institution"
             )
+            .prefetch_related(
+                "fee_plans",
+                "fee_plans__installments",
+            )
             .all()
         )
 

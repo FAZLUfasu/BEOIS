@@ -13,7 +13,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from admissions.models import Program
 from dashboard.selectors import get_scoped_leads
+from organization.models import Branch
 
 from .distribution_services import (
     bulk_assign_leads,
@@ -26,6 +28,7 @@ from .import_services import (
 )
 from .models import (
     Lead,
+    LeadAppointment,
     LeadImportBatch,
 )
 from .permissions import (
@@ -48,12 +51,23 @@ from .serializers import (
     LeadStatusSerializer,
     LeadUpdateSerializer,
     RecordCallSerializer,
+    LeadAppointmentCreateSerializer,
+    LeadAppointmentSerializer,
+    LeadAppointmentStatusSerializer,
+    LeadCourseOptionSerializer,
+    LeadQualificationSerializer,
+    LeadQualificationUpdateSerializer,
+    VisitBranchSerializer,
 )
 from .services import (
     add_lead_note,
     assign_lead,
+    change_lead_appointment_status,
     change_lead_status,
+    mark_lead_qualified,
     record_call,
+    save_lead_qualification,
+    schedule_lead_appointment,
 )
 
 
@@ -1188,6 +1202,477 @@ class LeadViewSet(ModelViewSet):
         return Response(
             LeadActivitySerializer(
                 activities,
+                many=True,
+            ).data
+        )
+
+    # ============================================================
+    # QUALIFICATION / COUNSELLING
+    # GET/POST/PATCH /api/leads/{id}/qualification/
+    # ============================================================
+
+    @action(
+        detail=True,
+        methods=["get", "post", "patch"],
+        url_path="qualification",
+    )
+    def qualification(
+        self,
+        request,
+        pk=None,
+    ):
+        lead = self.get_object()
+
+        if request.method == "GET":
+            qualification = getattr(
+                lead,
+                "qualification",
+                None,
+            )
+
+            if qualification is None:
+                return Response(
+                    {
+                        "qualification": None,
+                    }
+                )
+
+            return Response(
+                LeadQualificationSerializer(
+                    qualification
+                ).data
+            )
+
+        serializer = (
+            LeadQualificationUpdateSerializer(
+                data=request.data
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        try:
+            qualification = (
+                save_lead_qualification(
+                    lead=lead,
+                    performed_by=request.user,
+                    **serializer.validated_data,
+                )
+            )
+
+        except ValidationError as exc:
+            detail = (
+                exc.message_dict
+                if hasattr(
+                    exc,
+                    "message_dict",
+                )
+                else exc.messages
+            )
+
+            return Response(
+                {
+                    "detail": detail,
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        return Response(
+            LeadQualificationSerializer(
+                qualification
+            ).data
+        )
+
+    # ============================================================
+    # SAFE COURSE FINDER
+    # GET /api/leads/{id}/course-options/
+    #
+    # This endpoint intentionally exposes student-facing fee data
+    # only. ProgramInternalFinance / center fee is never serialized.
+    # ============================================================
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="course-options",
+    )
+    def course_options(
+        self,
+        request,
+        pk=None,
+    ):
+        lead = self.get_object()
+
+        qualification = getattr(
+            lead,
+            "qualification",
+            None,
+        )
+
+        if qualification is None:
+            return Response(
+                {
+                    "detail": (
+                        "Save qualification details "
+                        "before finding eligible courses."
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        queryset = (
+            Program.objects
+            .filter(
+                is_active=True,
+                institution__is_active=True,
+            )
+            .select_related(
+                "institution"
+            )
+            .prefetch_related(
+                "fee_plans",
+                "fee_plans__installments",
+            )
+        )
+
+        if (
+            lead.vertical
+            == Lead.Vertical.CREDIT_TRANSFER
+        ):
+            queryset = queryset.filter(
+                is_credit_transfer_available=True
+            )
+
+        institution = (
+            request.query_params.get(
+                "institution"
+            )
+        )
+
+        if institution:
+            queryset = queryset.filter(
+                institution_id=institution
+            )
+
+        level = (
+            request.query_params.get(
+                "level"
+            )
+            or qualification.required_level
+        )
+
+        if level and level != "OTHER":
+            queryset = queryset.filter(
+                level=level
+            )
+
+        study_mode = (
+            request.query_params.get(
+                "study_mode"
+            )
+        )
+
+        if study_mode:
+            queryset = queryset.filter(
+                study_mode=study_mode
+            )
+
+        search = (
+            request.query_params.get(
+                "search",
+                "",
+            )
+            .strip()
+        )
+
+        if search:
+            queryset = queryset.filter(
+                Q(
+                    name__icontains=search
+                )
+                | Q(
+                    code__icontains=search
+                )
+                | Q(
+                    specialization__icontains=search
+                )
+                | Q(
+                    institution__name__icontains=search
+                )
+            )
+
+        queryset = queryset.order_by(
+            "institution__name",
+            "name",
+        )[:100]
+
+        return Response(
+            LeadCourseOptionSerializer(
+                queryset,
+                many=True,
+                context={
+                    "qualification":
+                        qualification,
+                },
+            ).data
+        )
+
+    # ============================================================
+    # MARK QUALIFIED
+    # POST /api/leads/{id}/qualify/
+    # ============================================================
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="qualify",
+    )
+    def qualify(
+        self,
+        request,
+        pk=None,
+    ):
+        lead = self.get_object()
+
+        try:
+            lead = mark_lead_qualified(
+                lead=lead,
+                performed_by=request.user,
+            )
+
+        except ValidationError as exc:
+            return Response(
+                {
+                    "detail": exc.messages,
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        return Response(
+            LeadDetailSerializer(
+                lead
+            ).data
+        )
+
+    # ============================================================
+    # OPTIONAL COLLEGE VISITS
+    # GET/POST /api/leads/{id}/appointments/
+    # ============================================================
+
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="appointments",
+    )
+    def appointments(
+        self,
+        request,
+        pk=None,
+    ):
+        lead = self.get_object()
+
+        if request.method == "GET":
+            appointments = (
+                lead.appointments
+                .select_related(
+                    "branch",
+                    "assigned_counsellor",
+                    "created_by",
+                )
+                .all()
+            )
+
+            return Response(
+                LeadAppointmentSerializer(
+                    appointments,
+                    many=True,
+                ).data
+            )
+
+        if (
+            lead.status
+            not in {
+                Lead.Status.QUALIFIED,
+                Lead.Status.CONVERTED,
+            }
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "College visits can be scheduled "
+                        "after the lead is QUALIFIED."
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        serializer = (
+            LeadAppointmentCreateSerializer(
+                data=request.data
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        try:
+            appointment = (
+                schedule_lead_appointment(
+                    lead=lead,
+                    performed_by=request.user,
+                    **serializer.validated_data,
+                )
+            )
+
+        except ValidationError as exc:
+            detail = (
+                exc.message_dict
+                if hasattr(
+                    exc,
+                    "message_dict",
+                )
+                else exc.messages
+            )
+
+            return Response(
+                {
+                    "detail": detail,
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        return Response(
+            LeadAppointmentSerializer(
+                appointment
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=(
+            r"appointments/"
+            r"(?P<appointment_id>[^/.]+)/status"
+        ),
+    )
+    def appointment_status(
+        self,
+        request,
+        pk=None,
+        appointment_id=None,
+    ):
+        lead = self.get_object()
+
+        try:
+            appointment = (
+                lead.appointments
+                .select_related(
+                    "branch",
+                    "assigned_counsellor",
+                )
+                .get(
+                    id=appointment_id
+                )
+            )
+
+        except LeadAppointment.DoesNotExist:
+            return Response(
+                {
+                    "detail": (
+                        "Appointment not found."
+                    )
+                },
+                status=(
+                    status.HTTP_404_NOT_FOUND
+                ),
+            )
+
+        serializer = (
+            LeadAppointmentStatusSerializer(
+                data=request.data
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        try:
+            appointment = (
+                change_lead_appointment_status(
+                    appointment=appointment,
+                    performed_by=request.user,
+                    **serializer.validated_data,
+                )
+            )
+
+        except ValidationError as exc:
+            detail = (
+                exc.message_dict
+                if hasattr(
+                    exc,
+                    "message_dict",
+                )
+                else exc.messages
+            )
+
+            return Response(
+                {
+                    "detail": detail,
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        return Response(
+            LeadAppointmentSerializer(
+                appointment
+            ).data
+        )
+
+    # ============================================================
+    # ACTIVE VISIT BRANCHES
+    # GET /api/leads/visit-branches/
+    # ============================================================
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="visit-branches",
+    )
+    def visit_branches(
+        self,
+        request,
+    ):
+        branches = (
+            Branch.objects
+            .filter(
+                is_active=True
+            )
+            .order_by(
+                "-is_head_office",
+                "name",
+            )
+        )
+
+        return Response(
+            VisitBranchSerializer(
+                branches,
                 many=True,
             ).data
         )

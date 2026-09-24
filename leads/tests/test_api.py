@@ -579,7 +579,7 @@ class LeadsAPISecurityTests(APITestCase):
 
         self.assertEqual(
             self.telecaller_lead.status,
-            Lead.Status.QUALIFIED,
+            Lead.Status.INTERESTED,
         )
 
         self.assertTrue(

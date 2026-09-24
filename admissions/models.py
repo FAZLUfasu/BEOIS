@@ -135,6 +135,63 @@ class Program(models.Model):
         blank=True,
     )
 
+    class StudyMode(models.TextChoices):
+        DISTANCE = "DISTANCE", "Distance"
+        ONLINE = "ONLINE", "Online"
+        REGULAR = "REGULAR", "Regular"
+        HYBRID = "HYBRID", "Hybrid"
+        OTHER = "OTHER", "Other"
+
+    class MinimumQualification(models.TextChoices):
+        UNSPECIFIED = "UNSPECIFIED", "Unspecified"
+        SSLC = "SSLC", "SSLC / 10th"
+        PLUS_TWO = "PLUS_TWO", "Plus Two / 12th"
+        DIPLOMA = "DIPLOMA", "Diploma"
+        UG = "UG", "Undergraduate Degree"
+        PG = "PG", "Postgraduate Degree"
+        OTHER = "OTHER", "Other"
+
+    study_mode = models.CharField(
+        max_length=30,
+        choices=StudyMode.choices,
+        default=StudyMode.OTHER,
+        db_index=True,
+    )
+
+    specialization = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    eligibility_text = models.TextField(
+        blank=True,
+    )
+
+    minimum_qualification = models.CharField(
+        max_length=30,
+        choices=MinimumQualification.choices,
+        default=MinimumQualification.UNSPECIFIED,
+        db_index=True,
+    )
+
+    required_stream = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=(
+            "Optional stream requirement. Use comma-separated "
+            "accepted streams when structured matching is possible."
+        ),
+    )
+
+    eligibility_review_required = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text=(
+            "Keep enabled when eligibility data needs manual "
+            "verification before a lead can be auto-qualified."
+        ),
+    )
+
     is_credit_transfer_available = models.BooleanField(
         default=False,
     )
@@ -168,6 +225,176 @@ class Program(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.institution.name}"
+
+
+# ================================================================
+# PROGRAM FEE MASTER
+# ================================================================
+
+class ProgramFeePlan(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="fee_plans",
+    )
+
+    name = models.CharField(
+        max_length=120,
+        default="Standard",
+    )
+
+    student_total_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    registration_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    exam_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    other_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+    )
+
+    notes = models.TextField(
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = ["program", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["program", "name"],
+                name="unique_program_fee_plan_name",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.program} - {self.name}"
+
+
+class ProgramFeeInstallment(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    fee_plan = models.ForeignKey(
+        ProgramFeePlan,
+        on_delete=models.CASCADE,
+        related_name="installments",
+    )
+
+    installment_number = models.PositiveSmallIntegerField()
+
+    label = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    due_stage = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+
+    notes = models.TextField(
+        blank=True,
+    )
+
+    class Meta:
+        ordering = [
+            "fee_plan",
+            "installment_number",
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "fee_plan",
+                    "installment_number",
+                ],
+                name="unique_program_fee_installment_number",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.fee_plan} - "
+            f"Installment {self.installment_number}"
+        )
+
+
+class ProgramInternalFinance(models.Model):
+    """
+    Confidential internal university/center cost data.
+
+    This model is deliberately NOT exposed by the telecaller
+    counselling serializers.
+    """
+
+    program = models.OneToOneField(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="internal_finance",
+        primary_key=True,
+    )
+
+    center_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    notes = models.TextField(
+        blank=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    def __str__(self):
+        return f"Internal finance - {self.program}"
 
 
 # ================================================================

@@ -5,6 +5,8 @@ from leads.models import Lead
 from .models import (
     Institution,
     Program,
+    ProgramFeePlan,
+    ProgramFeeInstallment,
     Admission,
     AdmissionDocument,
     AdmissionFee,
@@ -64,6 +66,48 @@ class InstitutionSerializer(serializers.ModelSerializer):
 # ================================================================
 
 
+class ProgramFeeInstallmentSerializer(
+    serializers.ModelSerializer
+):
+
+    class Meta:
+        model = ProgramFeeInstallment
+        fields = [
+            "id",
+            "installment_number",
+            "label",
+            "amount",
+            "due_stage",
+            "notes",
+        ]
+        read_only_fields = fields
+
+
+class ProgramFeePlanSerializer(
+    serializers.ModelSerializer
+):
+
+    installments = ProgramFeeInstallmentSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = ProgramFeePlan
+        fields = [
+            "id",
+            "name",
+            "student_total_fee",
+            "registration_fee",
+            "exam_fee",
+            "other_fee",
+            "is_active",
+            "notes",
+            "installments",
+        ]
+        read_only_fields = fields
+
+
 class ProgramSerializer(serializers.ModelSerializer):
 
     institution_name = serializers.CharField(
@@ -75,6 +119,30 @@ class ProgramSerializer(serializers.ModelSerializer):
         source="get_level_display",
         read_only=True,
     )
+
+    study_mode_display = serializers.CharField(
+        source="get_study_mode_display",
+        read_only=True,
+    )
+
+    minimum_qualification_display = serializers.CharField(
+        source="get_minimum_qualification_display",
+        read_only=True,
+    )
+
+    fee_plans = serializers.SerializerMethodField()
+
+    def get_fee_plans(self, obj):
+        plans = [
+            plan
+            for plan in obj.fee_plans.all()
+            if plan.is_active
+        ]
+
+        return ProgramFeePlanSerializer(
+            plans,
+            many=True,
+        ).data
 
     class Meta:
         model = Program
@@ -89,7 +157,16 @@ class ProgramSerializer(serializers.ModelSerializer):
             "level_display",
             "duration_years",
             "duration_semesters",
+            "study_mode",
+            "study_mode_display",
+            "specialization",
+            "eligibility_text",
+            "minimum_qualification",
+            "minimum_qualification_display",
+            "required_stream",
+            "eligibility_review_required",
             "is_credit_transfer_available",
+            "fee_plans",
             "is_active",
             "notes",
             "created_at",
@@ -100,6 +177,9 @@ class ProgramSerializer(serializers.ModelSerializer):
             "id",
             "institution_name",
             "level_display",
+            "study_mode_display",
+            "minimum_qualification_display",
+            "fee_plans",
             "created_at",
             "updated_at",
         ]

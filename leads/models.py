@@ -25,6 +25,7 @@ class Lead(models.Model):
         NEW = "NEW", "New"
         ASSIGNED = "ASSIGNED", "Assigned"
         CONTACTED = "CONTACTED", "Contacted"
+        INTERESTED = "INTERESTED", "Interested"
         FOLLOW_UP = "FOLLOW_UP", "Follow Up"
         QUALIFIED = "QUALIFIED", "Qualified"
         CONVERTED = "CONVERTED", "Converted"
@@ -261,6 +262,8 @@ class LeadActivity(models.Model):
         CALL = "CALL", "Call"
         NOTE = "NOTE", "Note"
         FOLLOW_UP = "FOLLOW_UP", "Follow Up"
+        QUALIFICATION = "QUALIFICATION", "Qualification"
+        APPOINTMENT = "APPOINTMENT", "Appointment"
         STATUS_CHANGE = "STATUS_CHANGE", "Status Change"
         CONVERTED = "CONVERTED", "Converted"
 
@@ -401,6 +404,279 @@ class CallLog(models.Model):
                     "Follow-up date/time is required "
                     "for a callback."
             })
+# ================================================================
+# LEAD QUALIFICATION / COUNSELLING
+# ================================================================
+
+class LeadQualification(models.Model):
+
+    class QualificationLevel(models.TextChoices):
+        UNSPECIFIED = "UNSPECIFIED", "Unspecified"
+        SSLC = "SSLC", "SSLC / 10th"
+        PLUS_TWO = "PLUS_TWO", "Plus Two / 12th"
+        DIPLOMA = "DIPLOMA", "Diploma"
+        UG = "UG", "Undergraduate Degree"
+        PG = "PG", "Postgraduate Degree"
+        OTHER = "OTHER", "Other"
+
+    class RequiredLevel(models.TextChoices):
+        UG = "UG", "Undergraduate"
+        PG = "PG", "Postgraduate"
+        DIPLOMA = "DIPLOMA", "Diploma"
+        CERTIFICATE = "CERTIFICATE", "Certificate"
+        OTHER = "OTHER", "Other"
+
+    class EligibilityStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        ELIGIBLE = "ELIGIBLE", "Eligible"
+        NOT_ELIGIBLE = "NOT_ELIGIBLE", "Not Eligible"
+        REVIEW_REQUIRED = "REVIEW_REQUIRED", "Review Required"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    lead = models.OneToOneField(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name="qualification",
+    )
+
+    highest_qualification = models.CharField(
+        max_length=30,
+        choices=QualificationLevel.choices,
+        default=QualificationLevel.UNSPECIFIED,
+        db_index=True,
+    )
+
+    stream = models.CharField(
+        max_length=150,
+        blank=True,
+    )
+
+    board_or_university = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    year_of_passing = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    percentage_or_grade = models.CharField(
+        max_length=50,
+        blank=True,
+    )
+
+    required_level = models.CharField(
+        max_length=30,
+        choices=RequiredLevel.choices,
+        default=RequiredLevel.UG,
+        db_index=True,
+    )
+
+    interest_area = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    selected_institution = models.ForeignKey(
+        "admissions.Institution",
+        on_delete=models.PROTECT,
+        related_name="lead_qualifications",
+        null=True,
+        blank=True,
+    )
+
+    selected_program = models.ForeignKey(
+        "admissions.Program",
+        on_delete=models.PROTECT,
+        related_name="lead_qualifications",
+        null=True,
+        blank=True,
+    )
+
+    customer_budget = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    quoted_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    eligibility_status = models.CharField(
+        max_length=30,
+        choices=EligibilityStatus.choices,
+        default=EligibilityStatus.PENDING,
+        db_index=True,
+    )
+
+    eligibility_notes = models.TextField(
+        blank=True,
+    )
+
+    qualified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="qualified_leads",
+        null=True,
+        blank=True,
+    )
+
+    qualified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def clean(self):
+        super().clean()
+
+        if (
+            self.selected_program_id
+            and self.selected_institution_id
+            and (
+                self.selected_program.institution_id
+                != self.selected_institution_id
+            )
+        ):
+            raise ValidationError({
+                "selected_program": (
+                    "Selected program does not belong "
+                    "to the selected institution."
+                )
+            })
+
+    def __str__(self):
+        return f"Qualification - {self.lead}"
+
+
+# ================================================================
+# LEAD APPOINTMENT
+# ================================================================
+
+class LeadAppointment(models.Model):
+
+    class Purpose(models.TextChoices):
+        COUNSELLING = "COUNSELLING", "Counselling"
+        DOCUMENTS = "DOCUMENTS", "Document Submission"
+        ADMISSION = "ADMISSION", "Admission"
+        OTHER = "OTHER", "Other"
+
+    class Status(models.TextChoices):
+        SCHEDULED = "SCHEDULED", "Scheduled"
+        CONFIRMED = "CONFIRMED", "Confirmed"
+        ARRIVED = "ARRIVED", "Arrived"
+        COMPLETED = "COMPLETED", "Completed"
+        RESCHEDULED = "RESCHEDULED", "Rescheduled"
+        CANCELLED = "CANCELLED", "Cancelled"
+        NO_SHOW = "NO_SHOW", "No Show"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    lead = models.ForeignKey(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name="appointments",
+    )
+
+    purpose = models.CharField(
+        max_length=30,
+        choices=Purpose.choices,
+        default=Purpose.COUNSELLING,
+    )
+
+    scheduled_at = models.DateTimeField(
+        db_index=True,
+    )
+
+    branch = models.ForeignKey(
+        "organization.Branch",
+        on_delete=models.PROTECT,
+        related_name="lead_appointments",
+    )
+
+    assigned_counsellor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="lead_appointments",
+        null=True,
+        blank=True,
+    )
+
+    number_of_visitors = models.PositiveSmallIntegerField(
+        default=1,
+    )
+
+    notes = models.TextField(
+        blank=True,
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=Status.choices,
+        default=Status.SCHEDULED,
+        db_index=True,
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_lead_appointments",
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = ["scheduled_at"]
+        indexes = [
+            models.Index(
+                fields=["lead", "status"],
+            ),
+            models.Index(
+                fields=["scheduled_at", "status"],
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.lead.lead_id} - "
+            f"{self.get_purpose_display()} - "
+            f"{self.scheduled_at}"
+        )
+
+
 # ================================================================
 # MARKETING LEAD IMPORT BATCH
 # ================================================================

@@ -1,10 +1,19 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from admissions.models import (
+    Program,
+    ProgramFeeInstallment,
+    ProgramFeePlan,
+)
+from organization.models import Branch
+
 from .models import (
     Lead,
     LeadActivity,
     CallLog,
+    LeadQualification,
+    LeadAppointment,
     LeadImportBatch,
     LeadImportRow,
 )
@@ -70,6 +79,377 @@ class CallLogSerializer(serializers.ModelSerializer):
         ]
 
 
+class LeadQualificationSerializer(serializers.ModelSerializer):
+    selected_institution_name = serializers.CharField(
+        source="selected_institution.name",
+        read_only=True,
+        default=None,
+    )
+
+    selected_program_name = serializers.CharField(
+        source="selected_program.name",
+        read_only=True,
+        default=None,
+    )
+
+    selected_program_code = serializers.CharField(
+        source="selected_program.code",
+        read_only=True,
+        default="",
+    )
+
+    highest_qualification_display = serializers.CharField(
+        source="get_highest_qualification_display",
+        read_only=True,
+    )
+
+    required_level_display = serializers.CharField(
+        source="get_required_level_display",
+        read_only=True,
+    )
+
+    eligibility_status_display = serializers.CharField(
+        source="get_eligibility_status_display",
+        read_only=True,
+    )
+
+    qualified_by = UserMiniSerializer(
+        read_only=True,
+    )
+
+    class Meta:
+        model = LeadQualification
+        fields = [
+            "id",
+            "highest_qualification",
+            "highest_qualification_display",
+            "stream",
+            "board_or_university",
+            "year_of_passing",
+            "percentage_or_grade",
+            "required_level",
+            "required_level_display",
+            "interest_area",
+            "selected_institution",
+            "selected_institution_name",
+            "selected_program",
+            "selected_program_name",
+            "selected_program_code",
+            "customer_budget",
+            "quoted_fee",
+            "eligibility_status",
+            "eligibility_status_display",
+            "eligibility_notes",
+            "qualified_by",
+            "qualified_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class LeadQualificationUpdateSerializer(serializers.Serializer):
+    highest_qualification = serializers.ChoiceField(
+        choices=LeadQualification.QualificationLevel.choices,
+    )
+
+    stream = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=150,
+    )
+
+    board_or_university = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=255,
+    )
+
+    year_of_passing = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=1950,
+        max_value=2200,
+    )
+
+    percentage_or_grade = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=50,
+    )
+
+    required_level = serializers.ChoiceField(
+        choices=LeadQualification.RequiredLevel.choices,
+    )
+
+    interest_area = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=255,
+    )
+
+    selected_program = serializers.PrimaryKeyRelatedField(
+        queryset=Program.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+
+    customer_budget = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=0,
+    )
+
+    quoted_fee = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=0,
+    )
+
+
+class CourseFeeInstallmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProgramFeeInstallment
+        fields = [
+            "id",
+            "installment_number",
+            "label",
+            "amount",
+            "due_stage",
+            "notes",
+        ]
+        read_only_fields = fields
+
+
+class CourseFeePlanSerializer(serializers.ModelSerializer):
+    installments = CourseFeeInstallmentSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = ProgramFeePlan
+        fields = [
+            "id",
+            "name",
+            "student_total_fee",
+            "registration_fee",
+            "exam_fee",
+            "other_fee",
+            "notes",
+            "installments",
+        ]
+        read_only_fields = fields
+
+
+class LeadCourseOptionSerializer(serializers.ModelSerializer):
+    institution_id = serializers.UUIDField(
+        source="institution.id",
+        read_only=True,
+    )
+
+    institution_name = serializers.CharField(
+        source="institution.name",
+        read_only=True,
+    )
+
+    level_display = serializers.CharField(
+        source="get_level_display",
+        read_only=True,
+    )
+
+    study_mode_display = serializers.CharField(
+        source="get_study_mode_display",
+        read_only=True,
+    )
+
+    minimum_qualification_display = serializers.CharField(
+        source="get_minimum_qualification_display",
+        read_only=True,
+    )
+
+    fee_plans = serializers.SerializerMethodField()
+    eligibility_result = serializers.SerializerMethodField()
+    eligibility_reason = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Program
+        fields = [
+            "id",
+            "institution_id",
+            "institution_name",
+            "name",
+            "code",
+            "level",
+            "level_display",
+            "duration_years",
+            "duration_semesters",
+            "study_mode",
+            "study_mode_display",
+            "specialization",
+            "eligibility_text",
+            "minimum_qualification",
+            "minimum_qualification_display",
+            "required_stream",
+            "eligibility_review_required",
+            "is_credit_transfer_available",
+            "fee_plans",
+            "eligibility_result",
+            "eligibility_reason",
+        ]
+        read_only_fields = fields
+
+    def get_fee_plans(self, obj):
+        plans = [
+            plan
+            for plan in obj.fee_plans.all()
+            if plan.is_active
+        ]
+        return CourseFeePlanSerializer(
+            plans,
+            many=True,
+        ).data
+
+    def _eligibility(self, obj):
+        from .services import evaluate_program_eligibility
+
+        qualification = self.context.get("qualification")
+
+        if not qualification:
+            return (
+                LeadQualification.EligibilityStatus.PENDING,
+                "Save the student's qualification before evaluating courses.",
+            )
+
+        return evaluate_program_eligibility(
+            qualification,
+            obj,
+        )
+
+    def get_eligibility_result(self, obj):
+        return self._eligibility(obj)[0]
+
+    def get_eligibility_reason(self, obj):
+        return self._eligibility(obj)[1]
+
+
+class LeadAppointmentSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(
+        source="branch.name",
+        read_only=True,
+    )
+
+    purpose_display = serializers.CharField(
+        source="get_purpose_display",
+        read_only=True,
+    )
+
+    status_display = serializers.CharField(
+        source="get_status_display",
+        read_only=True,
+    )
+
+    assigned_counsellor = UserMiniSerializer(
+        read_only=True,
+    )
+
+    created_by = UserMiniSerializer(
+        read_only=True,
+    )
+
+    class Meta:
+        model = LeadAppointment
+        fields = [
+            "id",
+            "purpose",
+            "purpose_display",
+            "scheduled_at",
+            "branch",
+            "branch_name",
+            "assigned_counsellor",
+            "number_of_visitors",
+            "notes",
+            "status",
+            "status_display",
+            "created_by",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class LeadAppointmentCreateSerializer(serializers.Serializer):
+    purpose = serializers.ChoiceField(
+        choices=LeadAppointment.Purpose.choices,
+        default=LeadAppointment.Purpose.COUNSELLING,
+    )
+
+    scheduled_at = serializers.DateTimeField()
+
+    branch = serializers.PrimaryKeyRelatedField(
+        queryset=Branch.objects.filter(is_active=True),
+    )
+
+    number_of_visitors = serializers.IntegerField(
+        min_value=1,
+        max_value=20,
+        default=1,
+    )
+
+    notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )
+
+
+class LeadAppointmentStatusSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=LeadAppointment.Status.choices,
+    )
+
+    scheduled_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+    )
+
+    notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )
+
+    def validate(self, attrs):
+        if (
+            attrs["status"]
+            == LeadAppointment.Status.RESCHEDULED
+            and not attrs.get("scheduled_at")
+        ):
+            raise serializers.ValidationError({
+                "scheduled_at": (
+                    "A new date/time is required when rescheduling."
+                )
+            })
+
+        return attrs
+
+
+class VisitBranchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Branch
+        fields = [
+            "id",
+            "name",
+            "code",
+            "city",
+            "state",
+            "is_head_office",
+        ]
+        read_only_fields = fields
+
+
 class LeadListSerializer(serializers.ModelSerializer):
     assigned_to = UserMiniSerializer(
         read_only=True
@@ -127,6 +507,16 @@ class LeadListSerializer(serializers.ModelSerializer):
 class LeadDetailSerializer(serializers.ModelSerializer):
     assigned_to = UserMiniSerializer(
         read_only=True
+    )
+
+    qualification = LeadQualificationSerializer(
+        read_only=True,
+        default=None,
+    )
+
+    appointments = LeadAppointmentSerializer(
+        many=True,
+        read_only=True,
     )
 
     created_by = UserMiniSerializer(
@@ -189,6 +579,8 @@ class LeadDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "converted_at",
+            "qualification",
+            "appointments",
             "activities",
             "call_logs",
         ]
