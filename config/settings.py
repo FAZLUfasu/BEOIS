@@ -209,3 +209,34 @@ SIMPLE_JWT = {
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
+# --------------------------------------------------
+# BEOIS Block 4B - Celery / background scheduling
+# --------------------------------------------------
+
+CELERY_BROKER_URL = os.getenv(
+    "CELERY_BROKER_URL",
+    "redis://127.0.0.1:6379/0",
+)
+
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+
+# BEOIS reminder jobs do not need a result backend.
+CELERY_TASK_IGNORE_RESULT = True
+
+CELERY_BEAT_SCHEDULE = {
+    "beois-process-task-reminders-every-minute": {
+        "task": "notifications.process_task_reminders",
+        "schedule": 60.0,
+        # Avoid accumulating stale reminder jobs if the worker is offline.
+        "options": {
+            "expires": 55,
+        },
+    },
+}
