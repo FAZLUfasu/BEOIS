@@ -155,9 +155,14 @@ export interface LeadCourseOption {
 }
 
 export type LeadAppointmentPurpose =
-  | "COUNSELLING"
-  | "DOCUMENTS"
-  | "ADMISSION"
+  | "ADMISSION_COUNSELLING"
+  | "COURSE_ENQUIRY"
+  | "UNIVERSITY_COURSE_SELECTION"
+  | "FEE_DISCUSSION"
+  | "DOCUMENT_SUBMISSION"
+  | "CREDIT_TRANSFER_DISCUSSION"
+  | "BACKLOG_COMPLETION_DISCUSSION"
+  | "ADMISSION_CONFIRMATION"
   | "OTHER";
 
 export type LeadAppointmentStatus =
@@ -168,6 +173,21 @@ export type LeadAppointmentStatus =
   | "RESCHEDULED"
   | "CANCELLED"
   | "NO_SHOW";
+
+export interface LeadAppointmentHistory {
+  id: string;
+  event_type: "CREATED" | "STATUS_CHANGE" | "RESCHEDULED";
+  event_type_display: string;
+  previous_status: LeadAppointmentStatus | "";
+  previous_status_display: string;
+  new_status: LeadAppointmentStatus | "";
+  new_status_display: string;
+  previous_scheduled_at: string | null;
+  new_scheduled_at: string | null;
+  notes: string;
+  performed_by: UserMini | null;
+  created_at: string;
+}
 
 export interface LeadAppointment {
   id: string;
@@ -182,6 +202,7 @@ export interface LeadAppointment {
   status: LeadAppointmentStatus;
   status_display: string;
   created_by: UserMini | null;
+  history: LeadAppointmentHistory[];
   created_at: string;
   updated_at: string;
 }

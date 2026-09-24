@@ -17,7 +17,7 @@ from admissions.models import (
     Program,
 )
 from hr.models import Employee
-from leads.models import Lead
+from leads.models import Lead, LeadQualification
 from organization.models import (
     Branch,
     BusinessUnit,
@@ -235,6 +235,29 @@ class AdmissionsAPITests(APITestCase):
             interested_course="B.Com",
             status=Lead.Status.QUALIFIED,
             created_by=cls.superuser,
+        )
+
+        LeadQualification.objects.create(
+            lead=cls.qualified_lead,
+            highest_qualification=(
+                LeadQualification
+                .QualificationLevel
+                .PLUS_TWO
+            ),
+            required_level=(
+                LeadQualification
+                .RequiredLevel
+                .UG
+            ),
+            selected_institution=cls.institution,
+            selected_program=cls.program,
+            eligibility_status=(
+                LeadQualification
+                .EligibilityStatus
+                .ELIGIBLE
+            ),
+            qualified_by=cls.superuser,
+            qualified_at=timezone.now(),
         )
 
         # ========================================================
@@ -838,6 +861,29 @@ class AdmissionsAPITests(APITestCase):
             source="API Test",
             status=Lead.Status.QUALIFIED,
             created_by=self.superuser,
+        )
+
+        LeadQualification.objects.create(
+            lead=lead,
+            highest_qualification=(
+                LeadQualification
+                .QualificationLevel
+                .PLUS_TWO
+            ),
+            required_level=(
+                LeadQualification
+                .RequiredLevel
+                .UG
+            ),
+            selected_institution=self.institution,
+            selected_program=self.program,
+            eligibility_status=(
+                LeadQualification
+                .EligibilityStatus
+                .ELIGIBLE
+            ),
+            qualified_by=self.superuser,
+            qualified_at=timezone.now(),
         )
 
         self.authenticate(

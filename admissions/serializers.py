@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from leads.models import Lead
+from leads.models import Lead, LeadQualification
 
 from .models import (
     Institution,
@@ -410,6 +410,75 @@ class AdmissionListSerializer(
 
 
 # ================================================================
+# LEAD COUNSELLING HANDOFF
+# ================================================================
+
+
+class LeadCounsellingHandoffSerializer(
+    serializers.ModelSerializer
+):
+    highest_qualification_display = serializers.CharField(
+        source="get_highest_qualification_display",
+        read_only=True,
+    )
+
+    required_level_display = serializers.CharField(
+        source="get_required_level_display",
+        read_only=True,
+    )
+
+    eligibility_status_display = serializers.CharField(
+        source="get_eligibility_status_display",
+        read_only=True,
+    )
+
+    selected_institution_name = serializers.CharField(
+        source="selected_institution.name",
+        read_only=True,
+        default=None,
+    )
+
+    selected_program_name = serializers.CharField(
+        source="selected_program.name",
+        read_only=True,
+        default=None,
+    )
+
+    selected_program_code = serializers.CharField(
+        source="selected_program.code",
+        read_only=True,
+        default="",
+    )
+
+    class Meta:
+        model = LeadQualification
+        fields = [
+            "id",
+            "highest_qualification",
+            "highest_qualification_display",
+            "stream",
+            "board_or_university",
+            "year_of_passing",
+            "percentage_or_grade",
+            "required_level",
+            "required_level_display",
+            "interest_area",
+            "selected_institution",
+            "selected_institution_name",
+            "selected_program",
+            "selected_program_name",
+            "selected_program_code",
+            "customer_budget",
+            "quoted_fee",
+            "eligibility_status",
+            "eligibility_status_display",
+            "eligibility_notes",
+            "qualified_at",
+        ]
+        read_only_fields = fields
+
+
+# ================================================================
 # ADMISSION DETAIL
 # ================================================================
 
@@ -470,6 +539,21 @@ class AdmissionDetailSerializer(
         allow_null=True,
     )
 
+    lead_qualification = serializers.SerializerMethodField()
+
+    def get_lead_qualification(self, obj):
+        if not obj.lead_id:
+            return None
+
+        try:
+            qualification = obj.lead.qualification
+        except LeadQualification.DoesNotExist:
+            return None
+
+        return LeadCounsellingHandoffSerializer(
+            qualification
+        ).data
+
     partner_id = serializers.CharField(
         source="partner.partner_id",
         read_only=True,
@@ -485,6 +569,7 @@ class AdmissionDetailSerializer(
 
             "lead",
             "lead_id",
+            "lead_qualification",
 
             "applicant_name",
             "date_of_birth",
@@ -563,6 +648,11 @@ class QualifiedLeadHandoffSerializer(
         read_only=True,
     )
 
+    qualification = LeadCounsellingHandoffSerializer(
+        read_only=True,
+        default=None,
+    )
+
     partner_id = serializers.CharField(
         source="partner.partner_id",
         read_only=True,
@@ -609,6 +699,7 @@ class QualifiedLeadHandoffSerializer(
             "previous_course",
 
             "assigned_to",
+            "qualification",
 
             "notes",
 
@@ -629,9 +720,15 @@ class AdmissionFromLeadSerializer(
 
     lead_id = serializers.UUIDField()
 
-    institution_id = serializers.UUIDField()
+    institution_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
 
-    program_id = serializers.UUIDField()
+    program_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
 
     assigned_to_id = serializers.UUIDField(
         required=False,
@@ -655,45 +752,57 @@ class AdmissionFromLeadSerializer(
 
         return value
 
-    def validate_institution_id(
-        self,
-        value,
-    ):
-
-        if not Institution.objects.filter(
-            id=value,
-            is_active=True,
-        ).exists():
-            raise serializers.ValidationError(
-                "Active institution does not exist."
-            )
-
-        return value
-
-    def validate_program_id(
-        self,
-        value,
-    ):
-
-        if not Program.objects.filter(
-            id=value,
-            is_active=True,
-        ).exists():
-            raise serializers.ValidationError(
-                "Active program does not exist."
-            )
-
-        return value
-
     def validate(self, attrs):
-
-        institution = Institution.objects.get(
-            id=attrs["institution_id"]
+        institution_id = attrs.get(
+            "institution_id"
+        )
+        program_id = attrs.get(
+            "program_id"
         )
 
-        program = Program.objects.get(
-            id=attrs["program_id"]
+        if bool(institution_id) != bool(program_id):
+            raise serializers.ValidationError({
+                "detail": (
+                    "Institution and program must be "
+                    "provided together when overriding "
+                    "the stored counselling selection."
+                )
+            })
+
+        if not institution_id:
+            return attrs
+
+        institution = (
+            Institution.objects
+            .filter(
+                id=institution_id,
+                is_active=True,
+            )
+            .first()
         )
+
+        if not institution:
+            raise serializers.ValidationError({
+                "institution_id": (
+                    "Active institution does not exist."
+                )
+            })
+
+        program = (
+            Program.objects
+            .filter(
+                id=program_id,
+                is_active=True,
+            )
+            .first()
+        )
+
+        if not program:
+            raise serializers.ValidationError({
+                "program_id": (
+                    "Active program does not exist."
+                )
+            })
 
         if (
             program.institution_id

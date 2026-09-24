@@ -1487,6 +1487,10 @@ class LeadViewSet(ModelViewSet):
                     "assigned_counsellor",
                     "created_by",
                 )
+                .prefetch_related(
+                    "history",
+                    "history__performed_by",
+                )
                 .all()
             )
 
@@ -1500,6 +1504,8 @@ class LeadViewSet(ModelViewSet):
         if (
             lead.status
             not in {
+                Lead.Status.INTERESTED,
+                Lead.Status.FOLLOW_UP,
                 Lead.Status.QUALIFIED,
                 Lead.Status.CONVERTED,
             }
@@ -1507,8 +1513,10 @@ class LeadViewSet(ModelViewSet):
             return Response(
                 {
                     "detail": (
-                        "College visits can be scheduled "
-                        "after the lead is QUALIFIED."
+                        "College visits are optional and "
+                        "can be scheduled for interested, "
+                        "follow-up, qualified, or converted "
+                        "leads."
                     )
                 },
                 status=(

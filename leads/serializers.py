@@ -14,6 +14,7 @@ from .models import (
     CallLog,
     LeadQualification,
     LeadAppointment,
+    LeadAppointmentHistory,
     LeadImportBatch,
     LeadImportRow,
 )
@@ -337,6 +338,47 @@ class LeadCourseOptionSerializer(serializers.ModelSerializer):
         return self._eligibility(obj)[1]
 
 
+class LeadAppointmentHistorySerializer(
+    serializers.ModelSerializer
+):
+    event_type_display = serializers.CharField(
+        source="get_event_type_display",
+        read_only=True,
+    )
+
+    previous_status_display = serializers.CharField(
+        source="get_previous_status_display",
+        read_only=True,
+    )
+
+    new_status_display = serializers.CharField(
+        source="get_new_status_display",
+        read_only=True,
+    )
+
+    performed_by = UserMiniSerializer(
+        read_only=True,
+    )
+
+    class Meta:
+        model = LeadAppointmentHistory
+        fields = [
+            "id",
+            "event_type",
+            "event_type_display",
+            "previous_status",
+            "previous_status_display",
+            "new_status",
+            "new_status_display",
+            "previous_scheduled_at",
+            "new_scheduled_at",
+            "notes",
+            "performed_by",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
 class LeadAppointmentSerializer(serializers.ModelSerializer):
     branch_name = serializers.CharField(
         source="branch.name",
@@ -361,6 +403,11 @@ class LeadAppointmentSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    history = LeadAppointmentHistorySerializer(
+        many=True,
+        read_only=True,
+    )
+
     class Meta:
         model = LeadAppointment
         fields = [
@@ -376,6 +423,7 @@ class LeadAppointmentSerializer(serializers.ModelSerializer):
             "status",
             "status_display",
             "created_by",
+            "history",
             "created_at",
             "updated_at",
         ]
@@ -385,7 +433,10 @@ class LeadAppointmentSerializer(serializers.ModelSerializer):
 class LeadAppointmentCreateSerializer(serializers.Serializer):
     purpose = serializers.ChoiceField(
         choices=LeadAppointment.Purpose.choices,
-        default=LeadAppointment.Purpose.COUNSELLING,
+        default=(
+            LeadAppointment.Purpose
+            .ADMISSION_COUNSELLING
+        ),
     )
 
     scheduled_at = serializers.DateTimeField()

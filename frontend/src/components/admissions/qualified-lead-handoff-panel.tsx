@@ -3,23 +3,22 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useState,
 } from "react";
 
 import {
   ArrowRight,
   CheckCircle2,
+  GraduationCap,
   LoaderCircle,
   RefreshCw,
   Search,
   UserRound,
+  WalletCards,
 } from "lucide-react";
 
 import {
   convertLeadToAdmission,
-  getInstitutions,
-  getPrograms,
   getQualifiedLeadHandoffs,
 } from "@/lib/api/admissions";
 
@@ -27,8 +26,6 @@ import type {
   AdmissionChannel,
   AdmissionDetail,
   AdmissionVertical,
-  Institution,
-  Program,
   QualifiedLeadHandoff,
 } from "@/types/admissions";
 
@@ -51,6 +48,29 @@ function getUserName(
   return name || user.email;
 }
 
+function formatMoney(
+  value: string | null | undefined,
+) {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  return new Intl.NumberFormat(
+    "en-IN",
+    {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    },
+  ).format(parsed);
+}
+
 export function QualifiedLeadHandoffPanel({
   onConverted,
 }: {
@@ -64,16 +84,6 @@ export function QualifiedLeadHandoffPanel({
   ] = useState<QualifiedLeadHandoff[]>(
     [],
   );
-
-  const [
-    institutions,
-    setInstitutions,
-  ] = useState<Institution[]>([]);
-
-  const [
-    programs,
-    setPrograms,
-  ] = useState<Program[]>([]);
 
   const [
     selectedLead,
@@ -100,27 +110,12 @@ export function QualifiedLeadHandoffPanel({
   );
 
   const [
-    institutionId,
-    setInstitutionId,
-  ] = useState("");
-
-  const [
-    programId,
-    setProgramId,
-  ] = useState("");
-
-  const [
     academicSession,
     setAcademicSession,
   ] = useState("");
 
   const [loading, setLoading] =
     useState(false);
-
-  const [
-    programsLoading,
-    setProgramsLoading,
-  ] = useState(false);
 
   const [
     converting,
@@ -148,18 +143,20 @@ export function QualifiedLeadHandoffPanel({
 
         setLeads(data);
 
-        if (selectedLead) {
-          const stillAvailable =
-            data.find(
-              (item) =>
-                item.id ===
-                selectedLead.id,
-            );
+        setSelectedLead(
+          (current) => {
+            if (!current) {
+              return null;
+            }
 
-          if (!stillAvailable) {
-            setSelectedLead(null);
-          }
-        }
+            return (
+              data.find(
+                (item) =>
+                  item.id === current.id,
+              ) ?? null
+            );
+          },
+        );
       } catch {
         setError(
           "Unable to load qualified lead handoffs.",
@@ -171,26 +168,7 @@ export function QualifiedLeadHandoffPanel({
       search,
       vertical,
       channel,
-      selectedLead,
     ]);
-
-  const loadInstitutions =
-    useCallback(async () => {
-      try {
-        const data =
-          await getInstitutions(true);
-
-        setInstitutions(data);
-      } catch {
-        setError(
-          "Unable to load institutions.",
-        );
-      }
-    }, []);
-
-  useEffect(() => {
-    void loadInstitutions();
-  }, [loadInstitutions]);
 
   useEffect(() => {
     const timer =
@@ -202,69 +180,11 @@ export function QualifiedLeadHandoffPanel({
       window.clearTimeout(timer);
   }, [loadLeads]);
 
-  useEffect(() => {
-    if (!institutionId) {
-      setPrograms([]);
-      setProgramId("");
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadPrograms() {
-      setProgramsLoading(true);
-      setProgramId("");
-
-      try {
-        const data =
-          await getPrograms(
-            institutionId,
-            {
-              active: true,
-
-              creditTransfer:
-                selectedLead?.vertical ===
-                "CREDIT_TRANSFER"
-                  ? true
-                  : undefined,
-            },
-          );
-
-        if (!cancelled) {
-          setPrograms(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setPrograms([]);
-          setError(
-            "Unable to load programs for the selected institution.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setProgramsLoading(false);
-        }
-      }
-    }
-
-    void loadPrograms();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    institutionId,
-    selectedLead?.vertical,
-  ]);
-
   function chooseLead(
     lead: QualifiedLeadHandoff,
   ) {
     setSelectedLead(lead);
-    setInstitutionId("");
-    setProgramId("");
     setAcademicSession("");
-    setPrograms([]);
     setError("");
     setSuccess("");
   }
@@ -274,31 +194,21 @@ export function QualifiedLeadHandoffPanel({
       return;
     }
 
-    if (!institutionId) {
+    const qualification =
+      selectedLead.qualification;
+
+    if (
+      !qualification
+      || qualification.eligibility_status
+        !== "ELIGIBLE"
+      || !qualification.selected_institution
+      || !qualification.selected_program
+    ) {
       setError(
-        "Select an institution before conversion.",
+        "This handoff does not contain a complete eligible counselling selection.",
       );
       return;
     }
-
-    if (!programId) {
-      setError(
-        "Select a program before conversion.",
-      );
-      return;
-    }
-
-    const institution =
-      institutions.find(
-        (item) =>
-          item.id === institutionId,
-      );
-
-    const program =
-      programs.find(
-        (item) =>
-          item.id === programId,
-      );
 
     const confirmed =
       window.confirm(
@@ -306,14 +216,9 @@ export function QualifiedLeadHandoffPanel({
           `Convert ${selectedLead.lead_id} to an admission?`,
           "",
           `Applicant: ${selectedLead.name}`,
-          `Institution: ${
-            institution?.name ||
-            "Selected institution"
-          }`,
-          `Program: ${
-            program?.name ||
-            "Selected program"
-          }`,
+          `Institution: ${qualification.selected_institution_name || "—"}`,
+          `Program: ${qualification.selected_program_name || "—"}`,
+          `Quoted fee: ${formatMoney(qualification.quoted_fee)}`,
         ].join("\n"),
       );
 
@@ -329,9 +234,6 @@ export function QualifiedLeadHandoffPanel({
       const admission =
         await convertLeadToAdmission({
           lead_id: selectedLead.id,
-          institution_id:
-            institutionId,
-          program_id: programId,
           academic_session:
             academicSession.trim(),
         });
@@ -341,34 +243,18 @@ export function QualifiedLeadHandoffPanel({
       );
 
       setSelectedLead(null);
-      setInstitutionId("");
-      setProgramId("");
       setAcademicSession("");
-      setPrograms([]);
 
       await loadLeads();
       await onConverted(admission);
     } catch {
       setError(
-        "Lead conversion failed. Confirm that the lead is still qualified, the institution/program are valid, and you have permission to perform the handoff.",
+        "Lead conversion failed. Confirm that the counselling selection is still eligible and that you have permission to perform the handoff.",
       );
     } finally {
       setConverting(false);
     }
   }
-
-  const selectedInstitution =
-    useMemo(
-      () =>
-        institutions.find(
-          (item) =>
-            item.id === institutionId,
-        ),
-      [
-        institutions,
-        institutionId,
-      ],
-    );
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -383,9 +269,10 @@ export function QualifiedLeadHandoffPanel({
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Review qualified telecalling
-            leads and convert approved
-            handoffs into admissions.
+            Review the Telecaller&apos;s
+            qualified counselling selection.
+            Institution and program carry
+            forward automatically.
           </p>
         </div>
 
@@ -505,14 +392,13 @@ export function QualifiedLeadHandoffPanel({
                 />
 
                 <p className="mt-3 font-medium text-slate-800">
-                  No qualified leads
-                  waiting
+                  No qualified leads waiting
                 </p>
 
                 <p className="mt-1 text-sm text-slate-500">
                   New handoffs will appear
-                  here when leads become
-                  qualified.
+                  here after Telecaller
+                  qualification.
                 </p>
               </div>
             ) : (
@@ -552,21 +438,19 @@ export function QualifiedLeadHandoffPanel({
                   </div>
 
                   <div className="mt-1 text-xs text-slate-500">
-                    {lead.interested_course ||
-                      "Course not specified"}
+                    {lead.qualification
+                      ?.selected_program_name
+                      || lead.interested_course
+                      || "Course not specified"}
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                      {
-                        lead.vertical_display
-                      }
+                      {lead.vertical_display}
                     </span>
 
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                      {
-                        lead.channel_display
-                      }
+                      {lead.channel_display}
                     </span>
                   </div>
                 </button>
@@ -588,10 +472,10 @@ export function QualifiedLeadHandoffPanel({
               </p>
 
               <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">
-                Review the handoff and
-                choose the institution and
-                program before creating the
-                admission.
+                The institution, program and
+                qualification selected during
+                Telecalling will be carried
+                into Admissions automatically.
               </p>
             </div>
           ) : (
@@ -608,20 +492,30 @@ export function QualifiedLeadHandoffPanel({
                 <p className="mt-1 text-sm text-slate-500">
                   {selectedLead.lead_id}
                   {" • "}
-                  {
-                    selectedLead.phone_number
-                  }
+                  {selectedLead.phone_number}
                 </p>
               </div>
 
               <div className="grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
                 <div>
                   <div className="text-xs text-slate-400">
-                    Interested Course
+                    Qualification
                   </div>
                   <div className="mt-1 text-sm font-medium text-slate-800">
-                    {selectedLead.interested_course ||
-                      "—"}
+                    {selectedLead.qualification
+                      ?.highest_qualification_display
+                      || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-slate-400">
+                    Stream
+                  </div>
+                  <div className="mt-1 text-sm font-medium text-slate-800">
+                    {selectedLead.qualification
+                      ?.stream
+                      || "—"}
                   </div>
                 </div>
 
@@ -638,135 +532,56 @@ export function QualifiedLeadHandoffPanel({
 
                 <div>
                   <div className="text-xs text-slate-400">
-                    Source
+                    Eligibility
                   </div>
-                  <div className="mt-1 text-sm font-medium text-slate-800">
-                    {selectedLead.source ||
-                      "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs text-slate-400">
-                    Campaign
-                  </div>
-                  <div className="mt-1 text-sm font-medium text-slate-800">
-                    {selectedLead.campaign ||
-                      "—"}
+                  <div className="mt-1 text-sm font-medium text-emerald-700">
+                    {selectedLead.qualification
+                      ?.eligibility_status_display
+                      || "—"}
                   </div>
                 </div>
+              </div>
 
-                {selectedLead.channel ===
-                  "PARTNER" && (
-                  <div className="sm:col-span-2">
-                    <div className="text-xs text-slate-400">
-                      Partner
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-slate-800">
-                      {selectedLead.partner_name ||
-                        selectedLead.partner_id ||
-                        "—"}
-                    </div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700">
+                  <GraduationCap size={16} />
+                  Telecaller Selection
+                </div>
+
+                <div className="mt-3 text-sm font-semibold text-slate-950">
+                  {selectedLead.qualification
+                    ?.selected_program_name
+                    || "No program selected"}
+                </div>
+
+                <div className="mt-1 text-xs text-slate-600">
+                  {selectedLead.qualification
+                    ?.selected_institution_name
+                    || "No institution selected"}
+                </div>
+
+                {selectedLead.qualification
+                  ?.selected_program_code && (
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    Program code: {selectedLead.qualification.selected_program_code}
                   </div>
                 )}
 
-                {selectedLead.vertical ===
-                  "CREDIT_TRANSFER" && (
-                  <div className="sm:col-span-2">
-                    <div className="text-xs text-slate-400">
-                      Previous Course
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-slate-800">
-                      {selectedLead.previous_course ||
-                        "—"}
-                    </div>
-                  </div>
-                )}
+                <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-blue-800">
+                  <WalletCards size={16} />
+                  Quoted fee: {formatMoney(
+                    selectedLead.qualification
+                      ?.quoted_fee,
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Institution
-                </label>
-
-                <select
-                  value={institutionId}
-                  onChange={(event) =>
-                    setInstitutionId(
-                      event.target.value,
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
-                >
-                  <option value="">
-                    Select institution
-                  </option>
-
-                  {institutions.map(
-                    (item) => (
-                      <option
-                        key={item.id}
-                        value={item.id}
-                      >
-                        {item.name}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Program
-                </label>
-
-                <select
-                  value={programId}
-                  disabled={
-                    !institutionId ||
-                    programsLoading
-                  }
-                  onChange={(event) =>
-                    setProgramId(
-                      event.target.value,
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-50"
-                >
-                  <option value="">
-                    {programsLoading
-                      ? "Loading programs..."
-                      : "Select program"}
-                  </option>
-
-                  {programs.map(
-                    (item) => (
-                      <option
-                        key={item.id}
-                        value={item.id}
-                      >
-                        {item.name}
-                        {item.code
-                          ? ` (${item.code})`
-                          : ""}
-                      </option>
-                    ),
-                  )}
-                </select>
-
-                {selectedLead.vertical ===
-                  "CREDIT_TRANSFER" &&
-                  institutionId &&
-                  !programsLoading &&
-                  programs.length === 0 && (
-                    <p className="mt-2 text-xs text-amber-700">
-                      No active
-                      credit-transfer-enabled
-                      programs are available
-                      for this institution.
-                    </p>
-                  )}
-              </div>
+              {selectedLead.qualification
+                ?.eligibility_notes && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-xs leading-5 text-emerald-800">
+                  {selectedLead.qualification.eligibility_notes}
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -788,28 +603,29 @@ export function QualifiedLeadHandoffPanel({
 
               <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
                 <div className="font-medium">
-                  Conversion summary
+                  No course re-entry required
                 </div>
 
                 <div className="mt-2 text-xs leading-5 text-blue-700">
-                  {selectedInstitution
-                    ? selectedInstitution.name
-                    : "Choose an institution"}
-                  {" • "}
-                  {programs.find(
-                    (item) =>
-                      item.id === programId,
-                  )?.name ||
-                    "Choose a program"}
+                  Admissions will use the
+                  institution and program
+                  already approved during
+                  Telecaller counselling.
                 </div>
               </div>
 
               <button
                 type="button"
                 disabled={
-                  converting ||
-                  !institutionId ||
-                  !programId
+                  converting
+                  || !selectedLead.qualification
+                  || selectedLead.qualification
+                    .eligibility_status
+                    !== "ELIGIBLE"
+                  || !selectedLead.qualification
+                    .selected_institution
+                  || !selectedLead.qualification
+                    .selected_program
                 }
                 onClick={() =>
                   void handleConvert()

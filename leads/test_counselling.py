@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -6,10 +7,14 @@ from django.test import TestCase
 from django.utils import timezone
 
 from admissions.models import (
+    Admission,
     Institution,
     Program,
     ProgramFeePlan,
     ProgramInternalFinance,
+)
+from admissions.services import (
+    create_admission_from_lead,
 )
 from organization.models import (
     Branch,
@@ -21,12 +26,14 @@ from leads.models import (
     CallLog,
     Lead,
     LeadAppointment,
+    LeadAppointmentHistory,
     LeadQualification,
 )
 from leads.serializers import (
     LeadCourseOptionSerializer,
 )
 from leads.services import (
+    change_lead_appointment_status,
     mark_lead_qualified,
     record_call,
     save_lead_qualification,
@@ -282,7 +289,7 @@ class TelecallerCounsellingServiceTests(
         self,
     ):
         self.lead.status = (
-            Lead.Status.QUALIFIED
+            Lead.Status.INTERESTED
         )
         self.lead.save(
             update_fields=[
@@ -300,7 +307,7 @@ class TelecallerCounsellingServiceTests(
                 purpose=(
                     LeadAppointment
                     .Purpose
-                    .COUNSELLING
+                    .ADMISSION_COUNSELLING
                 ),
             )
         )
@@ -317,4 +324,173 @@ class TelecallerCounsellingServiceTests(
         self.assertEqual(
             appointment.branch,
             self.branch,
+        )
+
+        self.assertEqual(
+            appointment.history.count(),
+            1,
+        )
+
+    def test_visit_reschedule_preserves_history(
+        self,
+    ):
+        self.lead.status = (
+            Lead.Status.INTERESTED
+        )
+        self.lead.save(
+            update_fields=[
+                "status",
+                "updated_at",
+            ]
+        )
+
+        original_time = timezone.now()
+        new_time = (
+            original_time
+            + timedelta(days=1)
+        )
+
+        appointment = (
+            schedule_lead_appointment(
+                lead=self.lead,
+                branch=self.branch,
+                scheduled_at=original_time,
+                performed_by=self.user,
+            )
+        )
+
+        change_lead_appointment_status(
+            appointment=appointment,
+            status=(
+                LeadAppointment
+                .Status
+                .RESCHEDULED
+            ),
+            scheduled_at=new_time,
+            performed_by=self.user,
+            notes="Student requested a later visit.",
+        )
+
+        appointment.refresh_from_db()
+
+        history = (
+            appointment.history
+            .filter(
+                event_type=(
+                    LeadAppointmentHistory
+                    .EventType
+                    .RESCHEDULED
+                )
+            )
+            .get()
+        )
+
+        self.assertEqual(
+            history.previous_scheduled_at,
+            original_time,
+        )
+
+        self.assertEqual(
+            history.new_scheduled_at,
+            new_time,
+        )
+
+        self.assertEqual(
+            appointment.scheduled_at,
+            new_time,
+        )
+
+    def test_zero_visitors_are_rejected(
+        self,
+    ):
+        self.lead.status = (
+            Lead.Status.INTERESTED
+        )
+        self.lead.save(
+            update_fields=[
+                "status",
+                "updated_at",
+            ]
+        )
+
+        with self.assertRaises(
+            ValidationError
+        ):
+            schedule_lead_appointment(
+                lead=self.lead,
+                branch=self.branch,
+                scheduled_at=timezone.now(),
+                performed_by=self.user,
+                number_of_visitors=0,
+            )
+
+    def test_admission_handoff_uses_counselling_selection(
+        self,
+    ):
+        qualification = (
+            save_lead_qualification(
+                lead=self.lead,
+                performed_by=self.user,
+                highest_qualification=(
+                    LeadQualification
+                    .QualificationLevel
+                    .PLUS_TWO
+                ),
+                required_level=(
+                    LeadQualification
+                    .RequiredLevel
+                    .UG
+                ),
+                selected_program=(
+                    self.program
+                ),
+                quoted_fee=Decimal(
+                    "58000.00"
+                ),
+            )
+        )
+
+        self.assertEqual(
+            qualification.eligibility_status,
+            (
+                LeadQualification
+                .EligibilityStatus
+                .ELIGIBLE
+            ),
+        )
+
+        mark_lead_qualified(
+            lead=self.lead,
+            performed_by=self.user,
+        )
+
+        admission = (
+            create_admission_from_lead(
+                lead=self.lead,
+                created_by=self.user,
+                assigned_to=self.user,
+            )
+        )
+
+        self.assertEqual(
+            admission.institution,
+            self.institution,
+        )
+
+        self.assertEqual(
+            admission.program,
+            self.program,
+        )
+
+        self.lead.refresh_from_db()
+
+        self.assertEqual(
+            self.lead.status,
+            Lead.Status.CONVERTED,
+        )
+
+        self.assertTrue(
+            Admission.objects.filter(
+                lead=self.lead,
+            ).exists()
         )

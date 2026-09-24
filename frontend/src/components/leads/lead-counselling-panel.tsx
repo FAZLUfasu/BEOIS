@@ -276,7 +276,7 @@ export function LeadCounsellingPanel({
     visitPurpose,
     setVisitPurpose,
   ] = useState<LeadAppointmentPurpose>(
-    "COUNSELLING",
+    "ADMISSION_COUNSELLING",
   );
 
   const [
@@ -349,7 +349,9 @@ export function LeadCounsellingPanel({
   }, []);
 
   const canScheduleVisit =
-    lead.status === "QUALIFIED"
+    lead.status === "INTERESTED"
+    || lead.status === "FOLLOW_UP"
+    || lead.status === "QUALIFIED"
     || lead.status === "CONVERTED";
 
   const selectedCourseLabel =
@@ -1337,8 +1339,9 @@ export function LeadCounsellingPanel({
 
         {!canScheduleVisit ? (
           <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
-            Qualify the lead first to
-            enable visit scheduling.
+            Mark the lead interested or
+            schedule a follow-up first to
+            enable an optional college visit.
           </div>
         ) : (
           <form
@@ -1422,14 +1425,29 @@ export function LeadCounsellingPanel({
               }
               className="h-10 rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-[var(--brand)]"
             >
-              <option value="COUNSELLING">
-                Counselling
+              <option value="ADMISSION_COUNSELLING">
+                Admission Counselling
               </option>
-              <option value="DOCUMENTS">
+              <option value="COURSE_ENQUIRY">
+                Course Enquiry
+              </option>
+              <option value="UNIVERSITY_COURSE_SELECTION">
+                University / Course Selection
+              </option>
+              <option value="FEE_DISCUSSION">
+                Fee Discussion
+              </option>
+              <option value="DOCUMENT_SUBMISSION">
                 Document Submission
               </option>
-              <option value="ADMISSION">
-                Admission
+              <option value="CREDIT_TRANSFER_DISCUSSION">
+                Credit Transfer Discussion
+              </option>
+              <option value="BACKLOG_COMPLETION_DISCUSSION">
+                Backlog Completion Discussion
+              </option>
+              <option value="ADMISSION_CONFIRMATION">
+                Admission Confirmation
               </option>
               <option value="OTHER">
                 Other
@@ -1543,6 +1561,52 @@ export function LeadCounsellingPanel({
                             .notes
                         }
                       </p>
+                    )}
+
+                    {appointment.history
+                      .length > 0 && (
+                      <details className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                        <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                          Visit History ({appointment.history.length})
+                        </summary>
+
+                        <div className="mt-3 space-y-2">
+                          {appointment.history.map(
+                            (event) => (
+                              <div
+                                key={event.id}
+                                className="rounded-lg bg-slate-50 p-2 text-[10px] leading-4 text-slate-600"
+                              >
+                                <div className="font-bold text-slate-700">
+                                  {event.event_type_display}
+                                </div>
+
+                                {event.previous_scheduled_at
+                                  && event.new_scheduled_at
+                                  && event.event_type === "RESCHEDULED" && (
+                                  <div className="mt-1">
+                                    {formatDateTime(event.previous_scheduled_at)}
+                                    {" → "}
+                                    {formatDateTime(event.new_scheduled_at)}
+                                  </div>
+                                )}
+
+                                {event.event_type === "STATUS_CHANGE" && (
+                                  <div className="mt-1">
+                                    {event.previous_status_display || "—"}
+                                    {" → "}
+                                    {event.new_status_display || "—"}
+                                  </div>
+                                )}
+
+                                <div className="mt-1 text-slate-400">
+                                  {formatDateTime(event.created_at)}
+                                </div>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      </details>
                     )}
 
                     {active && (

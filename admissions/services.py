@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from leads.models import Lead
+from leads.models import Lead, LeadQualification
 from leads.services import change_lead_status
 
 from .models import (
@@ -44,8 +44,8 @@ def _log_activity(
 @transaction.atomic
 def create_admission_from_lead(
     lead,
-    institution,
-    program,
+    institution=None,
+    program=None,
     created_by=None,
     assigned_to=None,
     academic_session="",
@@ -64,6 +64,55 @@ def create_admission_from_lead(
     if hasattr(lead, "admission"):
         raise ValidationError(
             "An admission already exists for this lead."
+        )
+
+    try:
+        qualification = lead.qualification
+    except LeadQualification.DoesNotExist:
+        qualification = None
+
+    if qualification is not None:
+        if (
+            qualification.eligibility_status
+            != LeadQualification.EligibilityStatus.ELIGIBLE
+        ):
+            raise ValidationError(
+                "Lead eligibility must be ELIGIBLE before "
+                "admission handoff."
+            )
+
+        if (
+            not qualification.selected_institution_id
+            or not qualification.selected_program_id
+        ):
+            raise ValidationError(
+                "Counselling must contain a selected "
+                "institution and program before handoff."
+            )
+
+        if institution is None:
+            institution = (
+                qualification.selected_institution
+            )
+
+        if program is None:
+            program = qualification.selected_program
+
+        if (
+            institution.id
+            != qualification.selected_institution_id
+            or program.id
+            != qualification.selected_program_id
+        ):
+            raise ValidationError(
+                "Admission institution/program must match "
+                "the Telecaller counselling selection."
+            )
+    elif institution is None or program is None:
+        raise ValidationError(
+            "Qualified lead does not have counselling "
+            "selection data. Institution and program "
+            "are required for legacy/internal handoff."
         )
 
     if not institution.is_active:
@@ -139,7 +188,11 @@ def create_admission_from_lead(
         AdmissionActivity.ActivityType.CREATED,
         (
             f"Admission {admission.admission_id} "
-            f"created from lead {lead.lead_id}."
+            f"created from lead {lead.lead_id}. "
+            "Counselling selection carried forward: "
+            f"{institution.name} / {program.name}; "
+            "quoted fee: "
+            f"{(qualification.quoted_fee if qualification else None) or 'not recorded'}."
         ),
         created_by,
     )

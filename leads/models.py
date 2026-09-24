@@ -577,9 +577,38 @@ class LeadQualification(models.Model):
 class LeadAppointment(models.Model):
 
     class Purpose(models.TextChoices):
-        COUNSELLING = "COUNSELLING", "Counselling"
-        DOCUMENTS = "DOCUMENTS", "Document Submission"
-        ADMISSION = "ADMISSION", "Admission"
+        ADMISSION_COUNSELLING = (
+            "ADMISSION_COUNSELLING",
+            "Admission Counselling",
+        )
+        COURSE_ENQUIRY = (
+            "COURSE_ENQUIRY",
+            "Course Enquiry",
+        )
+        UNIVERSITY_COURSE_SELECTION = (
+            "UNIVERSITY_COURSE_SELECTION",
+            "University / Course Selection",
+        )
+        FEE_DISCUSSION = (
+            "FEE_DISCUSSION",
+            "Fee Discussion",
+        )
+        DOCUMENT_SUBMISSION = (
+            "DOCUMENT_SUBMISSION",
+            "Document Submission",
+        )
+        CREDIT_TRANSFER_DISCUSSION = (
+            "CREDIT_TRANSFER_DISCUSSION",
+            "Credit Transfer Discussion",
+        )
+        BACKLOG_COMPLETION_DISCUSSION = (
+            "BACKLOG_COMPLETION_DISCUSSION",
+            "Backlog Completion Discussion",
+        )
+        ADMISSION_CONFIRMATION = (
+            "ADMISSION_CONFIRMATION",
+            "Admission Confirmation",
+        )
         OTHER = "OTHER", "Other"
 
     class Status(models.TextChoices):
@@ -606,7 +635,7 @@ class LeadAppointment(models.Model):
     purpose = models.CharField(
         max_length=30,
         choices=Purpose.choices,
-        default=Purpose.COUNSELLING,
+        default=Purpose.ADMISSION_COUNSELLING,
     )
 
     scheduled_at = models.DateTimeField(
@@ -668,12 +697,108 @@ class LeadAppointment(models.Model):
                 fields=["scheduled_at", "status"],
             ),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(
+                    number_of_visitors__gte=1
+                ),
+                name=(
+                    "lead_appointment_visitors_gte_1"
+                ),
+            ),
+        ]
 
     def __str__(self):
         return (
             f"{self.lead.lead_id} - "
             f"{self.get_purpose_display()} - "
             f"{self.scheduled_at}"
+        )
+
+
+# ================================================================
+# LEAD APPOINTMENT HISTORY
+# ================================================================
+
+class LeadAppointmentHistory(models.Model):
+
+    class EventType(models.TextChoices):
+        CREATED = "CREATED", "Created"
+        STATUS_CHANGE = (
+            "STATUS_CHANGE",
+            "Status Change",
+        )
+        RESCHEDULED = (
+            "RESCHEDULED",
+            "Rescheduled",
+        )
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    appointment = models.ForeignKey(
+        LeadAppointment,
+        on_delete=models.CASCADE,
+        related_name="history",
+    )
+
+    event_type = models.CharField(
+        max_length=30,
+        choices=EventType.choices,
+        db_index=True,
+    )
+
+    previous_status = models.CharField(
+        max_length=30,
+        choices=LeadAppointment.Status.choices,
+        blank=True,
+    )
+
+    new_status = models.CharField(
+        max_length=30,
+        choices=LeadAppointment.Status.choices,
+        blank=True,
+    )
+
+    previous_scheduled_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    new_scheduled_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    notes = models.TextField(
+        blank=True,
+    )
+
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name=(
+            "lead_appointment_history_events"
+        ),
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+    )
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return (
+            f"{self.appointment_id} - "
+            f"{self.get_event_type_display()}"
         )
 
 

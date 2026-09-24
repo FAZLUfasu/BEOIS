@@ -147,6 +147,7 @@ export interface AdmissionDetail {
 
   lead: string | null;
   lead_id: string | null;
+  lead_qualification: HandoffQualification | null;
 
   applicant_name: string;
   date_of_birth: string | null;
@@ -229,6 +230,30 @@ export type AdmissionQueue =
   | "DOCUMENT_PENDING"
   | "FEE_PENDING"
   | "ENROLLMENT_PENDING";
+export interface HandoffQualification {
+  id: string;
+  highest_qualification: string;
+  highest_qualification_display: string;
+  stream: string;
+  board_or_university: string;
+  year_of_passing: number | null;
+  percentage_or_grade: string;
+  required_level: string;
+  required_level_display: string;
+  interest_area: string;
+  selected_institution: string | null;
+  selected_institution_name: string | null;
+  selected_program: string | null;
+  selected_program_name: string | null;
+  selected_program_code: string;
+  customer_budget: string | null;
+  quoted_fee: string | null;
+  eligibility_status: string;
+  eligibility_status_display: string;
+  eligibility_notes: string;
+  qualified_at: string | null;
+}
+
 export interface QualifiedLeadHandoff {
   id: string;
   lead_id: string;
@@ -260,6 +285,7 @@ export interface QualifiedLeadHandoff {
   previous_course: string;
 
   assigned_to: SimpleUser | null;
+  qualification: HandoffQualification | null;
 
   notes: string;
 
@@ -276,8 +302,8 @@ export interface QualifiedLeadFilters {
 }
 export interface ConvertLeadPayload {
   lead_id: string;
-  institution_id: string;
-  program_id: string;
+  institution_id?: string | null;
+  program_id?: string | null;
   assigned_to_id?: string | null;
   academic_session?: string;
 }

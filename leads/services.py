@@ -7,6 +7,7 @@ from .models import (
     Lead,
     LeadActivity,
     LeadAppointment,
+    LeadAppointmentHistory,
     LeadQualification,
 )
 from .task_integration import (
@@ -528,10 +529,27 @@ def schedule_lead_appointment(
     branch,
     scheduled_at,
     performed_by=None,
-    purpose=LeadAppointment.Purpose.COUNSELLING,
+    purpose=(
+        LeadAppointment.Purpose
+        .ADMISSION_COUNSELLING
+    ),
     number_of_visitors=1,
     notes="",
 ):
+    allowed_statuses = {
+        Lead.Status.INTERESTED,
+        Lead.Status.FOLLOW_UP,
+        Lead.Status.QUALIFIED,
+        Lead.Status.CONVERTED,
+    }
+
+    if lead.status not in allowed_statuses:
+        raise ValidationError(
+            "College visits can be scheduled only "
+            "for interested, follow-up, qualified, "
+            "or converted leads."
+        )
+
     appointment = LeadAppointment(
         lead=lead,
         purpose=purpose,
@@ -548,6 +566,21 @@ def schedule_lead_appointment(
 
     appointment.full_clean()
     appointment.save()
+
+    LeadAppointmentHistory.objects.create(
+        appointment=appointment,
+        event_type=(
+            LeadAppointmentHistory
+            .EventType
+            .CREATED
+        ),
+        new_status=appointment.status,
+        new_scheduled_at=(
+            appointment.scheduled_at
+        ),
+        notes=appointment.notes,
+        performed_by=performed_by,
+    )
 
     LeadActivity.objects.create(
         lead=lead,
@@ -592,10 +625,17 @@ def change_lead_appointment_status(
         )
 
     previous_status = appointment.status
+    previous_scheduled_at = (
+        appointment.scheduled_at
+    )
 
-    if (
+    is_reschedule = (
         status
         == LeadAppointment.Status.RESCHEDULED
+    )
+
+    if (
+        is_reschedule
         and scheduled_at is None
     ):
         raise ValidationError(
@@ -616,6 +656,46 @@ def change_lead_appointment_status(
     appointment.full_clean()
     appointment.save()
 
+    LeadAppointmentHistory.objects.create(
+        appointment=appointment,
+        event_type=(
+            LeadAppointmentHistory
+            .EventType
+            .RESCHEDULED
+            if is_reschedule
+            else (
+                LeadAppointmentHistory
+                .EventType
+                .STATUS_CHANGE
+            )
+        ),
+        previous_status=previous_status,
+        new_status=appointment.status,
+        previous_scheduled_at=(
+            previous_scheduled_at
+        ),
+        new_scheduled_at=(
+            appointment.scheduled_at
+        ),
+        notes=notes.strip(),
+        performed_by=performed_by,
+    )
+
+    if is_reschedule:
+        description = (
+            "College visit rescheduled from "
+            f"{previous_scheduled_at} to "
+            f"{appointment.scheduled_at}."
+        )
+    else:
+        description = (
+            "Appointment status changed from "
+            f"{previous_status} to {status}."
+        )
+
+    if notes.strip():
+        description += f" {notes.strip()}"
+
     LeadActivity.objects.create(
         lead=appointment.lead,
         activity_type=(
@@ -623,15 +703,7 @@ def change_lead_appointment_status(
             .ActivityType
             .APPOINTMENT
         ),
-        description=(
-            "Appointment status changed from "
-            f"{previous_status} to {status}."
-            + (
-                f" {notes.strip()}"
-                if notes.strip()
-                else ""
-            )
-        ),
+        description=description,
         performed_by=performed_by,
     )
 

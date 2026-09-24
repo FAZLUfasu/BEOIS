@@ -17,7 +17,7 @@ from dashboard.selectors import (
     get_scoped_employee_ids,
 )
 from hr.models import Employee
-from leads.models import Lead
+from leads.models import Lead, LeadQualification
 
 from .models import (
     Institution,
@@ -593,6 +593,9 @@ class AdmissionViewSet(
             .select_related(
                 "assigned_to",
                 "partner",
+                "qualification",
+                "qualification__selected_institution",
+                "qualification__selected_program",
             )
         )
 
@@ -804,21 +807,14 @@ class AdmissionViewSet(
                 ),
             )
 
-        institution = (
-            Institution.objects
-            .filter(
-                id=data["institution_id"],
-                is_active=True,
-            )
-            .first()
-        )
-
-        if not institution:
+        try:
+            qualification = lead.qualification
+        except LeadQualification.DoesNotExist:
             return Response(
                 {
                     "detail": (
-                        "Active institution "
-                        "does not exist."
+                        "Qualified lead does not have "
+                        "counselling qualification data."
                     )
                 },
                 status=(
@@ -826,21 +822,95 @@ class AdmissionViewSet(
                 ),
             )
 
-        program = (
-            Program.objects
-            .filter(
-                id=data["program_id"],
-                is_active=True,
-            )
-            .first()
-        )
-
-        if not program:
+        if (
+            qualification.eligibility_status
+            != LeadQualification
+            .EligibilityStatus
+            .ELIGIBLE
+            or not qualification.selected_institution_id
+            or not qualification.selected_program_id
+        ):
             return Response(
                 {
                     "detail": (
-                        "Active program "
-                        "does not exist."
+                        "Qualified lead must have an "
+                        "ELIGIBLE counselling selection "
+                        "before admission handoff."
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        institution = (
+            qualification.selected_institution
+        )
+        program = (
+            qualification.selected_program
+        )
+
+        supplied_institution_id = data.get(
+            "institution_id"
+        )
+        supplied_program_id = data.get(
+            "program_id"
+        )
+
+        if (
+            supplied_institution_id
+            and supplied_institution_id
+            != institution.id
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Admission institution must match "
+                        "the Telecaller counselling "
+                        "selection."
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        if (
+            supplied_program_id
+            and supplied_program_id
+            != program.id
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Admission program must match the "
+                        "Telecaller counselling selection."
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        if not institution.is_active:
+            return Response(
+                {
+                    "detail": (
+                        "Selected counselling institution "
+                        "is inactive."
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        if not program.is_active:
+            return Response(
+                {
+                    "detail": (
+                        "Selected counselling program "
+                        "is inactive."
                     )
                 },
                 status=(
