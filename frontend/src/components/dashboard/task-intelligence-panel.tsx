@@ -246,47 +246,62 @@ export function TaskIntelligencePanel({
           </p>
         </div>
 
-        <div className="text-[10px] text-slate-400">
-          Period created{" "}
-          <span className="font-bold text-slate-600">
-            {formatNumber(activity.created)}
-          </span>
-          {" · "}
-          completed{" "}
-          <span className="font-bold text-slate-600">
-            {formatNumber(activity.completed)}
-          </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-[10px] text-slate-400">
+            Period created{" "}
+            <span className="font-bold text-slate-600">
+              {formatNumber(activity.created)}
+            </span>
+            {" · "}
+            completed{" "}
+            <span className="font-bold text-slate-600">
+              {formatNumber(activity.completed)}
+            </span>
+          </div>
+
+          <Link
+            href="/tasks?view=open"
+            className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-600 transition hover:border-blue-200 hover:text-[var(--brand)]"
+          >
+            Open Tasks
+          </Link>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <MetricCard
-          label="Open Tasks"
-          value={formatNumber(
-            data.summary.open_tasks,
-          )}
-          helper="Pending + in progress"
-        />
+        <Link href="/tasks?view=open">
+          <MetricCard
+            label="Open Tasks"
+            value={formatNumber(
+              data.summary.open_tasks,
+            )}
+            helper="Pending + in progress"
+          />
+        </Link>
 
-        <MetricCard
-          label="Overdue"
-          value={formatNumber(
-            data.summary.overdue_tasks,
-          )}
-          helper="Past due and still open"
-          tone="danger"
-        />
+        <Link href="/tasks?view=overdue">
+          <MetricCard
+            label="Overdue"
+            value={formatNumber(
+              data.summary.overdue_tasks,
+            )}
+            helper="Past due and still open"
+            tone="danger"
+          />
+        </Link>
 
-        <MetricCard
-          label="Urgent"
-          value={formatNumber(
-            data.summary.urgent_open,
-          )}
-          helper={`${formatNumber(
-            data.summary.high_open,
-          )} high-priority open`}
-          tone="warning"
-        />
+        <Link href="/tasks?view=open&priority=URGENT">
+          <MetricCard
+            label="Urgent"
+            value={formatNumber(
+              data.summary.urgent_open,
+            )}
+            helper={`${formatNumber(
+              data.summary.high_open,
+            )} high-priority open`}
+            tone="warning"
+          />
+        </Link>
 
         <MetricCard
           label="Due Next 7 Days"
@@ -366,7 +381,10 @@ export function TaskIntelligencePanel({
           </div>
 
           <div className="mt-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <Link
+              href="/tasks?view=overdue&priority=URGENT"
+              className="flex items-center justify-between border-b border-slate-100 pb-3 transition hover:text-[var(--brand)]"
+            >
               <span className="text-xs text-slate-500">
                 Urgent overdue
               </span>
@@ -375,7 +393,7 @@ export function TaskIntelligencePanel({
                   data.attention.urgent_overdue,
                 )}
               </span>
-            </div>
+            </Link>
 
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <span className="text-xs text-slate-500">
@@ -501,7 +519,14 @@ export function TaskIntelligencePanel({
                         className="text-xs text-slate-600"
                       >
                         <td className="px-5 py-3 font-semibold text-slate-800">
-                          {row.label}
+                          <Link
+                            href={`/tasks?view=open&module=${encodeURIComponent(
+                              row.module,
+                            )}`}
+                            className="transition hover:text-[var(--brand)] hover:underline"
+                          >
+                            {row.label}
+                          </Link>
                         </td>
                         <td className="px-3 py-3">
                           {row.open_tasks}
@@ -644,7 +669,14 @@ export function TaskIntelligencePanel({
                     >
                       <td className="px-5 py-4">
                         <div className="font-semibold text-slate-900">
-                          {row.name}
+                          <Link
+                            href={`/tasks?view=open&assigned_to=${encodeURIComponent(
+                              row.user_id,
+                            )}`}
+                            className="transition hover:text-[var(--brand)] hover:underline"
+                          >
+                            {row.name}
+                          </Link>
                         </div>
                         <div className="mt-1 text-[10px] text-slate-400">
                           {row.employee_id ||

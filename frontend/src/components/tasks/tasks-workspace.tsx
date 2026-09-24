@@ -8,6 +8,8 @@ import {
   useState,
 } from "react";
 
+import { useRouter, useSearchParams } from "next/navigation";
+
 import {
   AlertTriangle,
   CalendarClock,
@@ -43,6 +45,7 @@ import type {
 
 type Tab =
   | "MY_TASKS"
+  | "ALL_TASKS"
   | "ASSIGNED_BY_ME"
   | "OVERDUE"
   | "UPCOMING"
@@ -138,7 +141,64 @@ export function TasksWorkspace() {
     hasRole(role),
   );
 
-  const [tab, setTab] = useState<Tab>("MY_TASKS");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const requestedTaskId =
+    searchParams.get("task")?.trim() || "";
+
+  const requestedView =
+    searchParams.get("view")?.trim().toLowerCase() || "";
+
+  const requestedPriorityValue =
+    searchParams.get("priority")?.trim().toUpperCase() || "";
+
+  const requestedPriority = PRIORITIES.includes(
+    requestedPriorityValue as TaskPriority,
+  )
+    ? (requestedPriorityValue as TaskPriority)
+    : undefined;
+
+  const requestedSourceModuleValue =
+    searchParams.get("module")?.trim().toUpperCase() || "";
+
+  const requestedSourceModule = SOURCE_MODULES.includes(
+    requestedSourceModuleValue as TaskSourceModule,
+  )
+    ? (requestedSourceModuleValue as TaskSourceModule)
+    : undefined;
+
+  const requestedAssignedTo =
+    searchParams.get("assigned_to")?.trim() || undefined;
+
+  function initialTab(): Tab {
+    if (requestedTaskId) {
+      return "ALL_TASKS";
+    }
+
+    switch (requestedView) {
+      case "all":
+      case "open":
+        return "ALL_TASKS";
+
+      case "assigned":
+        return "ASSIGNED_BY_ME";
+
+      case "overdue":
+        return "OVERDUE";
+
+      case "upcoming":
+        return "UPCOMING";
+
+      case "completed":
+        return "COMPLETED";
+
+      default:
+        return "MY_TASKS";
+    }
+  }
+
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   const [tasks, setTasks] = useState<BeoisTask[]>([]);
   const [assignees, setAssignees] = useState<TaskAssignee[]>([]);
@@ -175,18 +235,31 @@ export function TasksWorkspace() {
     try {
       let data: BeoisTask[];
 
-      if (tab === "MY_TASKS") {
+      const managementFilters = {
+        priority: requestedPriority,
+        sourceModule: requestedSourceModule,
+        assignedTo: requestedAssignedTo,
+      };
+
+      if (
+        tab === "MY_TASKS" ||
+        (!canManage && tab === "ALL_TASKS")
+      ) {
         data = await getMyTasks();
       } else if (tab === "OVERDUE") {
         data = await getTasks({
+          ...managementFilters,
           overdue: true,
         });
       } else if (tab === "COMPLETED") {
         data = await getTasks({
+          ...managementFilters,
           status: "COMPLETED",
         });
       } else {
-        data = await getTasks();
+        data = await getTasks(
+          managementFilters,
+        );
       }
 
       setTasks(data);
@@ -199,7 +272,13 @@ export function TasksWorkspace() {
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [
+    tab,
+    canManage,
+    requestedPriority,
+    requestedSourceModule,
+    requestedAssignedTo,
+  ]);
 
   const loadAssignees = useCallback(async () => {
     if (!canManage) {
@@ -248,6 +327,43 @@ export function TasksWorkspace() {
       );
     }
 
+    if (requestedPriority) {
+      result = result.filter(
+        (task) => task.priority === requestedPriority,
+      );
+    }
+
+    if (requestedSourceModule) {
+      result = result.filter(
+        (task) =>
+          task.source_module === requestedSourceModule,
+      );
+    }
+
+    if (requestedAssignedTo) {
+      result = result.filter(
+        (task) =>
+          task.assigned_to === requestedAssignedTo,
+      );
+    }
+
+    if (requestedTaskId) {
+      result = result.filter(
+        (task) => task.id === requestedTaskId,
+      );
+    }
+
+    if (
+      requestedView === "open" &&
+      tab === "ALL_TASKS"
+    ) {
+      result = result.filter(
+        (task) =>
+          task.status !== "COMPLETED" &&
+          task.status !== "CANCELLED",
+      );
+    }
+
     if (tab === "UPCOMING") {
       result = result.filter((task) => {
         if (
@@ -285,7 +401,17 @@ export function TasksWorkspace() {
     }
 
     return result;
-  }, [tasks, tab, search, user?.id]);
+  }, [
+    tasks,
+    tab,
+    search,
+    user?.id,
+    requestedPriority,
+    requestedSourceModule,
+    requestedAssignedTo,
+    requestedTaskId,
+    requestedView,
+  ]);
 
   async function changeOwnStatus(
     task: BeoisTask,
@@ -420,6 +546,10 @@ export function TasksWorkspace() {
     ...(canManage
       ? [
           {
+            id: "ALL_TASKS" as Tab,
+            label: "All Tasks",
+          },
+          {
             id: "ASSIGNED_BY_ME" as Tab,
             label: "Assigned by Me",
           },
@@ -447,6 +577,20 @@ export function TasksWorkspace() {
           },
         ]),
   ];
+
+  const hasDrilldown =
+    Boolean(requestedTaskId) ||
+    Boolean(requestedPriority) ||
+    Boolean(requestedSourceModule) ||
+    Boolean(requestedAssignedTo) ||
+    [
+      "all",
+      "open",
+      "assigned",
+      "overdue",
+      "upcoming",
+      "completed",
+    ].includes(requestedView);
 
   return (
     <div className="space-y-6">
@@ -499,6 +643,54 @@ export function TasksWorkspace() {
         </div>
       ) : null}
 
+      {hasDrilldown ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-xs font-semibold text-blue-800">
+              Intelligence drill-down active
+            </div>
+
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-blue-700/80">
+              {requestedTaskId ? (
+                <span>Focused task</span>
+              ) : null}
+
+              {requestedView ? (
+                <span>
+                  View: {requestedView.replaceAll("_", " ")}
+                </span>
+              ) : null}
+
+              {requestedPriority ? (
+                <span>Priority: {requestedPriority}</span>
+              ) : null}
+
+              {requestedSourceModule ? (
+                <span>
+                  Module:{" "}
+                  {requestedSourceModule.replaceAll("_", " ")}
+                </span>
+              ) : null}
+
+              {requestedAssignedTo ? (
+                <span>Staff filter active</span>
+              ) : null}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setTab("MY_TASKS");
+              router.replace("/tasks");
+            }}
+            className="inline-flex h-9 items-center justify-center rounded-xl border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+          >
+            Clear filters
+          </button>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-4 pt-4 sm:px-5">
           <div className="overflow-x-auto">
@@ -507,7 +699,13 @@ export function TasksWorkspace() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setTab(item.id)}
+                  onClick={() => {
+                    setTab(item.id);
+
+                    if (hasDrilldown) {
+                      router.replace("/tasks");
+                    }
+                  }}
                   className={`rounded-t-xl px-4 py-3 text-sm font-medium transition ${
                     tab === item.id
                       ? "border-b-2 border-blue-600 text-blue-700"
