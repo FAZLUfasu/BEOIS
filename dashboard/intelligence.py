@@ -1634,3 +1634,658 @@ def get_exception_intelligence(
             ),
         },
     }
+
+
+# ============================================================
+# BLOCK 5A — MANAGEMENT TASK INTELLIGENCE
+# ============================================================
+
+
+def get_task_intelligence(
+    user,
+    start_date=None,
+    end_date=None,
+):
+    from notifications.models import Task
+    from dashboard.selectors import get_scoped_tasks
+
+    start_date, end_date = _normalize_dates(
+        start_date,
+        end_date,
+    )
+
+    now = timezone.now()
+    today = timezone.localdate()
+
+    open_statuses = (
+        Task.Status.PENDING,
+        Task.Status.IN_PROGRESS,
+    )
+
+    tasks = get_scoped_tasks(user)
+
+    open_tasks = tasks.filter(
+        status__in=open_statuses
+    )
+
+    overdue_tasks = open_tasks.filter(
+        due_at__lt=now
+    )
+
+    due_next_7_days = open_tasks.filter(
+        due_at__gte=now,
+        due_at__lte=(
+            now + timedelta(days=7)
+        ),
+    )
+
+    period_created = tasks.filter(
+        created_at__date__range=(
+            start_date,
+            end_date,
+        )
+    )
+
+    period_completed = tasks.filter(
+        status=Task.Status.COMPLETED,
+        completed_at__date__range=(
+            start_date,
+            end_date,
+        ),
+    )
+
+    created_cohort = period_created.exclude(
+        status=Task.Status.CANCELLED
+    )
+
+    created_cohort_completed = (
+        created_cohort.filter(
+            status=Task.Status.COMPLETED
+        )
+    )
+
+    status_labels = dict(
+        Task.Status.choices
+    )
+    priority_labels = dict(
+        Task.Priority.choices
+    )
+    module_labels = dict(
+        Task.SourceModule.choices
+    )
+
+    status_rows = (
+        tasks.values("status")
+        .annotate(count=Count("id"))
+        .order_by("status")
+    )
+
+    priority_rows = (
+        open_tasks.values("priority")
+        .annotate(count=Count("id"))
+        .order_by("priority")
+    )
+
+    module_rows = (
+        open_tasks
+        .values("source_module")
+        .annotate(
+            open_tasks=Count("id"),
+            overdue_tasks=Count(
+                "id",
+                filter=Q(
+                    due_at__lt=now
+                ),
+            ),
+            high_tasks=Count(
+                "id",
+                filter=Q(
+                    priority=(
+                        Task.Priority.HIGH
+                    )
+                ),
+            ),
+            urgent_tasks=Count(
+                "id",
+                filter=Q(
+                    priority=(
+                        Task.Priority.URGENT
+                    )
+                ),
+            ),
+        )
+        .order_by(
+            "-overdue_tasks",
+            "-urgent_tasks",
+            "-open_tasks",
+            "source_module",
+        )
+    )
+
+    department_field = (
+        "assigned_to__employee_profile__"
+        "department__name"
+    )
+
+    department_rows = (
+        open_tasks
+        .values(department_field)
+        .annotate(
+            open_tasks=Count("id"),
+            overdue_tasks=Count(
+                "id",
+                filter=Q(
+                    due_at__lt=now
+                ),
+            ),
+            high_tasks=Count(
+                "id",
+                filter=Q(
+                    priority=(
+                        Task.Priority.HIGH
+                    )
+                ),
+            ),
+            urgent_tasks=Count(
+                "id",
+                filter=Q(
+                    priority=(
+                        Task.Priority.URGENT
+                    )
+                ),
+            ),
+        )
+        .order_by(
+            "-overdue_tasks",
+            "-urgent_tasks",
+            "-open_tasks",
+            department_field,
+        )
+    )
+
+    staff_rows = (
+        tasks
+        .values(
+            "assigned_to_id",
+            "assigned_to__username",
+            "assigned_to__email",
+            "assigned_to__first_name",
+            "assigned_to__last_name",
+            "assigned_to__employee_profile__employee_id",
+            "assigned_to__employee_profile__department__name",
+            "assigned_to__employee_profile__branch__name",
+        )
+        .annotate(
+            open_tasks=Count(
+                "id",
+                filter=Q(
+                    status__in=open_statuses
+                ),
+            ),
+            overdue_tasks=Count(
+                "id",
+                filter=Q(
+                    status__in=open_statuses,
+                    due_at__lt=now,
+                ),
+            ),
+            high_open=Count(
+                "id",
+                filter=Q(
+                    status__in=open_statuses,
+                    priority=Task.Priority.HIGH,
+                ),
+            ),
+            urgent_open=Count(
+                "id",
+                filter=Q(
+                    status__in=open_statuses,
+                    priority=Task.Priority.URGENT,
+                ),
+            ),
+            created_in_period=Count(
+                "id",
+                filter=Q(
+                    created_at__date__range=(
+                        start_date,
+                        end_date,
+                    )
+                ),
+            ),
+            completed_in_period=Count(
+                "id",
+                filter=Q(
+                    status=Task.Status.COMPLETED,
+                    completed_at__date__range=(
+                        start_date,
+                        end_date,
+                    ),
+                ),
+            ),
+            cohort_total=Count(
+                "id",
+                filter=(
+                    Q(
+                        created_at__date__range=(
+                            start_date,
+                            end_date,
+                        )
+                    )
+                    & ~Q(
+                        status=Task.Status.CANCELLED
+                    )
+                ),
+            ),
+            cohort_completed=Count(
+                "id",
+                filter=Q(
+                    created_at__date__range=(
+                        start_date,
+                        end_date,
+                    ),
+                    status=Task.Status.COMPLETED,
+                ),
+            ),
+        )
+        .filter(
+            Q(open_tasks__gt=0)
+            | Q(created_in_period__gt=0)
+            | Q(completed_in_period__gt=0)
+        )
+        .order_by(
+            "-overdue_tasks",
+            "-urgent_open",
+            "-open_tasks",
+            "assigned_to__username",
+        )
+    )
+
+    def assignee_name(row):
+        full_name = (
+            (
+                row[
+                    "assigned_to__first_name"
+                ]
+                or ""
+            ).strip()
+            + " "
+            + (
+                row[
+                    "assigned_to__last_name"
+                ]
+                or ""
+            ).strip()
+        ).strip()
+
+        return (
+            full_name
+            or row[
+                "assigned_to__username"
+            ]
+            or row[
+                "assigned_to__email"
+            ]
+            or str(
+                row["assigned_to_id"]
+            )
+        )
+
+    def task_assignee_name(task):
+        assigned_to = task.assigned_to
+
+        full_name = (
+            assigned_to.get_full_name()
+            or ""
+        ).strip()
+
+        return (
+            full_name
+            or assigned_to.username
+            or assigned_to.email
+            or str(assigned_to.pk)
+        )
+
+    def task_item(task):
+        return {
+            "task_id": str(task.id),
+            "title": task.title,
+            "status": task.status,
+            "priority": task.priority,
+            "source_module": (
+                task.source_module
+            ),
+            "source_module_label": (
+                module_labels.get(
+                    task.source_module,
+                    task.source_module,
+                )
+            ),
+            "source_label": (
+                task.source_label
+            ),
+            "assigned_to": {
+                "id": str(
+                    task.assigned_to_id
+                ),
+                "name": (
+                    task_assignee_name(
+                        task
+                    )
+                ),
+            },
+            "due_at": task.due_at,
+            "created_at": task.created_at,
+            "is_overdue": bool(
+                task.due_at
+                and task.due_at < now
+                and task.status
+                in open_statuses
+            ),
+            "action_url": (
+                f"/tasks?task={task.id}"
+            ),
+        }
+
+    upcoming_deadlines = (
+        open_tasks
+        .filter(
+            due_at__gte=now
+        )
+        .select_related(
+            "assigned_to"
+        )
+        .order_by(
+            "due_at",
+            "-priority",
+        )[:25]
+    )
+
+    oldest_overdue = (
+        overdue_tasks
+        .select_related(
+            "assigned_to"
+        )
+        .order_by(
+            "due_at",
+            "-priority",
+        )[:25]
+    )
+
+    age_3 = now - timedelta(days=3)
+    age_8 = now - timedelta(days=8)
+    age_15 = now - timedelta(days=15)
+    age_31 = now - timedelta(days=31)
+
+    return {
+        "period": _period_payload(
+            start_date,
+            end_date,
+        ),
+
+        "summary": {
+            "open_tasks": (
+                open_tasks.count()
+            ),
+            "overdue_tasks": (
+                overdue_tasks.count()
+            ),
+            "due_today": (
+                open_tasks.filter(
+                    due_at__date=today
+                ).count()
+            ),
+            "due_next_7_days": (
+                due_next_7_days.count()
+            ),
+            "high_open": (
+                open_tasks.filter(
+                    priority=(
+                        Task.Priority.HIGH
+                    )
+                ).count()
+            ),
+            "urgent_open": (
+                open_tasks.filter(
+                    priority=(
+                        Task.Priority.URGENT
+                    )
+                ).count()
+            ),
+            "without_due_date": (
+                open_tasks.filter(
+                    due_at__isnull=True
+                ).count()
+            ),
+        },
+
+        "period_activity": {
+            "created": (
+                period_created.count()
+            ),
+            "completed": (
+                period_completed.count()
+            ),
+            "created_cohort_total": (
+                created_cohort.count()
+            ),
+            "created_cohort_completed": (
+                created_cohort_completed
+                .count()
+            ),
+            "created_cohort_completion_rate": (
+                _percentage(
+                    created_cohort_completed
+                    .count(),
+                    created_cohort.count(),
+                )
+            ),
+        },
+
+        "status_breakdown": [
+            {
+                "status": row["status"],
+                "label": (
+                    status_labels.get(
+                        row["status"],
+                        row["status"],
+                    )
+                ),
+                "count": row["count"],
+            }
+            for row in status_rows
+        ],
+
+        "open_priority_breakdown": [
+            {
+                "priority": (
+                    row["priority"]
+                ),
+                "label": (
+                    priority_labels.get(
+                        row["priority"],
+                        row["priority"],
+                    )
+                ),
+                "count": row["count"],
+            }
+            for row in priority_rows
+        ],
+
+        "module_workload": [
+            {
+                "module": (
+                    row["source_module"]
+                ),
+                "label": (
+                    module_labels.get(
+                        row["source_module"],
+                        row["source_module"],
+                    )
+                ),
+                "open_tasks": (
+                    row["open_tasks"]
+                ),
+                "overdue_tasks": (
+                    row["overdue_tasks"]
+                ),
+                "high_tasks": (
+                    row["high_tasks"]
+                ),
+                "urgent_tasks": (
+                    row["urgent_tasks"]
+                ),
+            }
+            for row in module_rows
+        ],
+
+        "department_workload": [
+            {
+                "department": (
+                    row[
+                        department_field
+                    ]
+                    or "Unassigned"
+                ),
+                "open_tasks": (
+                    row["open_tasks"]
+                ),
+                "overdue_tasks": (
+                    row["overdue_tasks"]
+                ),
+                "high_tasks": (
+                    row["high_tasks"]
+                ),
+                "urgent_tasks": (
+                    row["urgent_tasks"]
+                ),
+            }
+            for row in department_rows
+        ],
+
+        "staff_workload": [
+            {
+                "user_id": str(
+                    row["assigned_to_id"]
+                ),
+                "employee_id": (
+                    row[
+                        "assigned_to__employee_profile__employee_id"
+                    ]
+                ),
+                "name": (
+                    assignee_name(row)
+                ),
+                "department": (
+                    row[
+                        "assigned_to__employee_profile__department__name"
+                    ]
+                ),
+                "branch": (
+                    row[
+                        "assigned_to__employee_profile__branch__name"
+                    ]
+                ),
+                "open_tasks": (
+                    row["open_tasks"]
+                ),
+                "overdue_tasks": (
+                    row["overdue_tasks"]
+                ),
+                "high_open": (
+                    row["high_open"]
+                ),
+                "urgent_open": (
+                    row["urgent_open"]
+                ),
+                "created_in_period": (
+                    row[
+                        "created_in_period"
+                    ]
+                ),
+                "completed_in_period": (
+                    row[
+                        "completed_in_period"
+                    ]
+                ),
+                "created_cohort_completion_rate": (
+                    _percentage(
+                        row[
+                            "cohort_completed"
+                        ],
+                        row[
+                            "cohort_total"
+                        ],
+                    )
+                ),
+            }
+            for row in staff_rows
+        ],
+
+        "aging": {
+            "0_2_days": (
+                open_tasks.filter(
+                    created_at__gt=age_3
+                ).count()
+            ),
+            "3_7_days": (
+                open_tasks.filter(
+                    created_at__lte=age_3,
+                    created_at__gt=age_8,
+                ).count()
+            ),
+            "8_14_days": (
+                open_tasks.filter(
+                    created_at__lte=age_8,
+                    created_at__gt=age_15,
+                ).count()
+            ),
+            "15_30_days": (
+                open_tasks.filter(
+                    created_at__lte=age_15,
+                    created_at__gt=age_31,
+                ).count()
+            ),
+            "31_plus_days": (
+                open_tasks.filter(
+                    created_at__lte=age_31
+                ).count()
+            ),
+        },
+
+        "upcoming_deadlines": [
+            task_item(task)
+            for task in upcoming_deadlines
+        ],
+
+        "oldest_overdue": [
+            task_item(task)
+            for task in oldest_overdue
+        ],
+
+        "attention": {
+            "urgent_overdue": (
+                overdue_tasks.filter(
+                    priority=(
+                        Task.Priority.URGENT
+                    )
+                ).count()
+            ),
+            "overdue_7_plus_days": (
+                overdue_tasks.filter(
+                    due_at__lte=(
+                        now
+                        - timedelta(days=7)
+                    )
+                ).count()
+            ),
+            "due_next_24_hours": (
+                open_tasks.filter(
+                    due_at__gte=now,
+                    due_at__lte=(
+                        now
+                        + timedelta(hours=24)
+                    ),
+                ).count()
+            ),
+        },
+    }

@@ -17,6 +17,7 @@ from dashboard.views import (
     StaffIntelligenceView,
     FinancialIntelligenceView,
     ExceptionIntelligenceView,
+    TaskIntelligenceView,
 )
 
 
@@ -126,5 +127,11 @@ urlpatterns = [
         "intelligence/exceptions/",
         ExceptionIntelligenceView.as_view(),
         name="intelligence-exceptions",
+    ),
+
+    path(
+        "intelligence/tasks/",
+        TaskIntelligenceView.as_view(),
+        name="intelligence-tasks",
     ),
 ]

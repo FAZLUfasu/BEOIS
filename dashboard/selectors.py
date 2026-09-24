@@ -911,3 +911,50 @@ def get_scoped_expenses(user):
             )
 
     return result.distinct()
+
+
+# ============================================================
+# TASK INTELLIGENCE
+# ============================================================
+
+
+def get_scoped_tasks(user):
+    from notifications.models import Task
+
+    if _is_superuser(user):
+        return Task.objects.all()
+
+    if (
+        not user
+        or not user.is_authenticated
+        or not user.is_active
+    ):
+        return Task.objects.none()
+
+    assignments = _active_assignments(user)
+
+    if not assignments.exists():
+        return Task.objects.none()
+
+    for assignment in assignments:
+        if (
+            assignment.scope_type
+            == UserRole.ScopeType.ORGANIZATION
+        ):
+            return Task.objects.all()
+
+    employee_ids = get_scoped_employee_ids(user)
+
+    user_ids = (
+        Employee.objects
+        .filter(id__in=employee_ids)
+        .exclude(user__isnull=True)
+        .values_list(
+            "user_id",
+            flat=True,
+        )
+    )
+
+    return Task.objects.filter(
+        assigned_to_id__in=user_ids
+    )

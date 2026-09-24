@@ -47,6 +47,7 @@ from dashboard.intelligence import (
     get_staff_intelligence,
     get_financial_intelligence,
     get_exception_intelligence,
+    get_task_intelligence,
 )
 
 
@@ -420,4 +421,12 @@ class ExceptionIntelligenceView(
 ):
     service_function = staticmethod(
         get_exception_intelligence
+    )
+
+
+class TaskIntelligenceView(
+    IntelligenceAPIView
+):
+    service_function = staticmethod(
+        get_task_intelligence
     )
