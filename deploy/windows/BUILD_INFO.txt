@@ -1,0 +1,12 @@
+BEOIS Windows Deployment
+========================
+
+Product Name : BEST
+Version      : 0.1.0
+Identifier   : in.bestcollege.best
+Git Commit   : 01e9b8ff3b84406e6b359882f131f8c7f1c66d53
+Build Date   : 2026-09-25 16.12.56
+Frontend     : F:\BEST\BEOIS\frontend
+
+Installer Files:
+- BEST_0.1.0_x64-setup.exe (3.53 MB)
