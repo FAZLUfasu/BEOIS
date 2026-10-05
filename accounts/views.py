@@ -29,11 +29,12 @@ from .serializers import (
     CurrentUserSerializer,
     UserDirectorySerializer,
     AdminPasswordResetSerializer,
+    AdminRoleCreateSerializer,
     AdminRoleReferenceSerializer,
     AdminUserCreateSerializer,
     AdminUserRoleSerializer,
     AdminUserSerializer,
-    ProfilePictureSerializer,
+    ProfilePictureSerializer,  
 )
 
 
@@ -394,21 +395,23 @@ class SuperAdminPasswordResetView(
 
 
 class SuperAdminRoleListView(
-    ListAPIView
+    ListCreateAPIView
 ):
     permission_classes = [
         IsAuthenticated,
         IsSuperAdmin,
     ]
-    serializer_class = (
-        AdminRoleReferenceSerializer
-    )
 
     def get_queryset(self):
         return Role.objects.filter(
             is_active=True
         ).order_by("name")
 
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return AdminRoleCreateSerializer
+
+        return AdminRoleReferenceSerializer
 
 class SuperAdminUserRoleListCreateView(
     APIView
