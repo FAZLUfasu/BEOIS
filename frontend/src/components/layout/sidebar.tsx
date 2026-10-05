@@ -150,10 +150,16 @@ const navigation: NavigationSection[] = [
   },
 
   {
-    label: "Administration",
-    items: [
-      {
-        name: "HR & Payroll",
+  label: "Administration",
+  items: [
+    {
+      name: "Roles & Permissions",
+      href: "/settings/roles",
+      icon: ShieldCheck,
+      superuserOnly: true,
+    },
+    {
+      name: "HR & Payroll",
         href: "/hr",
         icon: UserRoundCog,
         roles: [
