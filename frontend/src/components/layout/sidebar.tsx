@@ -17,7 +17,6 @@ import {
   Network,
   PhoneCall,
   Settings,
-  ShieldCheck,
   UserRoundCog,
   UsersRound,
   X,
@@ -292,38 +291,27 @@ export function Sidebar({
             : "-translate-x-full lg:translate-x-0",
         )}
       >
-        <div className="flex h-[78px] items-center border-b border-white/10 px-5">
+       <div className="flex h-[78px] items-center border-b border-white/10 px-4">
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--brand)] shadow-sm">
-              <ShieldCheck
-                size={23}
-                strokeWidth={2.2}
-              />
-            </div>
+            <img
+              src="/best-college-logo.png"
+              alt=""
+              className="h-10 w-10 shrink-0 object-contain"
+            />
 
             {!collapsed && (
-              <div className="min-w-0">
-                <div className="text-[17px] font-bold tracking-[0.08em]">
-                  BEOIS
+              <div className="min-w-0 flex-1">
+                <div className="whitespace-nowrap text-[17px] font-bold tracking-[0.04em] text-white">
+                  BEST COLLEGE
                 </div>
 
-                <div className="truncate text-[10px] font-medium tracking-wide text-blue-100/65">
-                  BEST EDUCATION OPERATIONS
+                <div className="whitespace-nowrap text-[8px] font-medium tracking-[0.025em] text-blue-200/75">
+                  BRAINSTORM EDUCATIONAL SOLUTIONS TRUST
                 </div>
               </div>
             )}
           </div>
-
-          <button
-            type="button"
-            aria-label="Close navigation"
-            onClick={onMobileClose}
-            className="flex size-9 items-center justify-center rounded-lg text-blue-100 hover:bg-white/10 lg:hidden"
-          >
-            <X size={20} />
-          </button>
         </div>
-
         <nav className="flex-1 overflow-y-auto px-3 py-5">
           {visibleNavigation.map(
             (section) => (

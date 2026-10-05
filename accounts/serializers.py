@@ -4,6 +4,7 @@ from django.contrib.auth.password_validation import (
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from rest_framework import serializers
+from django.contrib.auth.models import Permission
 
 from organization.models import (
     Branch,
@@ -248,6 +249,88 @@ class UserDirectorySerializer(
             )
             is not None
         )
+class AdminRoleCreateSerializer(
+    serializers.ModelSerializer
+):
+    permissions = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Permission.objects.all(),
+        required=False,
+    )
+
+    class Meta:
+        model = Role
+        fields = [
+            "id",
+            "name",
+            "code",
+            "description",
+            "is_active",
+            "permissions",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+        ]
+
+    def validate_name(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Role name is required."
+            )
+
+        return value
+
+    def validate_code(self, value):
+        value = value.strip().upper()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Role code is required."
+            )
+
+        if not value.replace("_", "").isalnum():
+            raise serializers.ValidationError(
+                "Role code may contain only letters, numbers and underscores."
+            )
+
+        return value
+
+    def validate(self, attrs):
+        name = attrs.get("name")
+        code = attrs.get("code")
+
+        queryset = Role.objects.all()
+
+        if self.instance:
+            queryset = queryset.exclude(
+                pk=self.instance.pk
+            )
+
+        if name and queryset.filter(
+            name__iexact=name
+        ).exists():
+            raise serializers.ValidationError(
+                {
+                    "name": "A role with this name already exists."
+                }
+            )
+
+        if code and queryset.filter(
+            code__iexact=code
+        ).exists():
+            raise serializers.ValidationError(
+                {
+                    "code": "A role with this code already exists."
+                }
+            )
+
+        return attrs
 class AdminRoleReferenceSerializer(
     serializers.ModelSerializer
 ):
