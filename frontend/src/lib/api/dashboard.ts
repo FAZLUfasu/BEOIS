@@ -117,3 +117,28 @@ export function getTaskIntelligence(
     )}`,
   );
 }
+
+export interface TelecallingDashboard {
+  period: {
+    start_date: string;
+    end_date: string;
+  };
+  total_calls: number;
+  call_outcomes: Record<string, number>;
+  active_leads: number;
+  follow_up_due_today: number;
+  overdue_follow_up: number;
+  unassigned_leads: number;
+  qualified_leads: number;
+  converted_leads: number;
+}
+
+export function getTelecallingDashboard(
+  period?: DashboardPeriod,
+) {
+  return apiRequest<TelecallingDashboard>(
+    `/dashboard/telecalling/${createPeriodQuery(
+      period,
+    )}`,
+  );
+}

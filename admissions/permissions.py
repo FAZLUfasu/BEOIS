@@ -43,6 +43,43 @@ class CanAccessAdmissions(BasePermission):
 # ================================================================
 
 
+class CanViewAcademicMasterData(BasePermission):
+    message = (
+        "You do not have permission "
+        "to view academic master data."
+    )
+
+    def has_permission(self, request, view):
+        user = request.user
+
+        if (
+            not user
+            or not user.is_authenticated
+            or not user.is_active
+        ):
+            return False
+
+        if user.is_superuser:
+            return True
+
+        if not hasattr(user, "has_role"):
+            return False
+
+        return (
+            user.has_role("SUPER_ADMIN")
+            or user.has_role("FULL_ACCESS")
+            or user.has_role("CHAIRMAN")
+            or user.has_role("GENERAL_MANAGER")
+            or user.has_role("ADMISSION")
+            or user.has_role("MANAGER")
+            or user.has_role("DEPARTMENT_HEAD")
+            or user.has_role("TELECALLER")
+            or user.has_role("COUNSELOR")
+        )
+
+
+
+
 class CanManageAdmissions(BasePermission):
 
     message = (
@@ -75,6 +112,7 @@ class CanManageAdmissions(BasePermission):
 
         return (
             user.has_role("SUPER_ADMIN")
+            or user.has_role("FULL_ACCESS")
             or user.has_role("CHAIRMAN")
             or user.has_role("GENERAL_MANAGER")
             or user.has_role("ADMISSION")
@@ -128,6 +166,7 @@ class CanManageAdmissionFinance(
         ):
             return (
                 user.has_role("ADMISSION")
+                or user.has_role("FULL_ACCESS")
                 or user.has_role("GENERAL_MANAGER")
                 or user.has_role("SUPER_ADMIN")
             )

@@ -110,6 +110,7 @@ def can_view_management_dashboard(user):
     return has_any_role(
         user,
         "SUPER_ADMIN",
+        "FULL_ACCESS",
         "CHAIRMAN",
         "GENERAL_MANAGER",
     )
@@ -119,6 +120,7 @@ def can_view_marketing_dashboard(user):
     if has_any_role(
         user,
         "SUPER_ADMIN",
+        "FULL_ACCESS",
         "CHAIRMAN",
         "GENERAL_MANAGER",
         "MARKETING",
@@ -142,6 +144,7 @@ def can_view_telecalling_dashboard(user):
     if has_any_role(
         user,
         "SUPER_ADMIN",
+        "FULL_ACCESS",
         "CHAIRMAN",
         "GENERAL_MANAGER",
         "TELECALLER",
@@ -166,6 +169,7 @@ def can_view_admission_dashboard(user):
     if has_any_role(
         user,
         "SUPER_ADMIN",
+        "FULL_ACCESS",
         "CHAIRMAN",
         "GENERAL_MANAGER",
         "ADMISSION",
@@ -189,6 +193,7 @@ def can_view_education_dashboard(user):
     if has_any_role(
         user,
         "SUPER_ADMIN",
+        "FULL_ACCESS",
         "CHAIRMAN",
         "GENERAL_MANAGER",
         "EDUCATION_PROCESS",
@@ -212,6 +217,7 @@ def can_view_partner_dashboard(user):
     if has_any_role(
         user,
         "SUPER_ADMIN",
+        "FULL_ACCESS",
         "CHAIRMAN",
         "GENERAL_MANAGER",
         "PARTNER_NETWORK",
@@ -235,6 +241,7 @@ def can_view_hr_dashboard(user):
     return has_any_role(
         user,
         "SUPER_ADMIN",
+        "FULL_ACCESS",
         "CHAIRMAN",
         "GENERAL_MANAGER",
         "HR",
@@ -245,6 +252,7 @@ def can_view_finance_dashboard(user):
     return has_any_role(
         user,
         "SUPER_ADMIN",
+        "FULL_ACCESS",
         "CHAIRMAN",
         "GENERAL_MANAGER",
         "FINANCE",
@@ -423,6 +431,11 @@ def get_scoped_employee_ids(user):
 def get_scoped_leads(user):
     if _is_superuser(user):
         return Lead.objects.all()
+
+    if user.has_role("TELECALLER"):
+        return Lead.objects.filter(
+            assigned_to=user
+        )
 
     assignments = _active_assignments(user)
 

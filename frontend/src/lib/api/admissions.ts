@@ -375,3 +375,64 @@ export function completeAdmission(
     },
   );
 }
+export interface InstitutionSearchOptions {
+  active?: boolean;
+  search?: string;
+}
+
+export interface InstitutionManagementPayload {
+  name: string;
+  short_name?: string;
+  code: string;
+  state?: string;
+  city?: string;
+  website?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  is_active?: boolean;
+  notes?: string;
+}
+
+export function getManagedInstitutions(
+  options: InstitutionSearchOptions = {},
+) {
+  const query = buildQuery({
+    active:
+      options.active === undefined
+        ? undefined
+        : options.active
+          ? "true"
+          : "false",
+    search: options.search,
+  });
+
+  return apiRequest<Institution[]>(
+    `/admissions/institutions/${query}`,
+  );
+}
+
+export function createInstitution(
+  payload: InstitutionManagementPayload,
+) {
+  return apiRequest<Institution>(
+    "/admissions/institutions/",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function updateInstitution(
+  institutionId: string,
+  payload: Partial<InstitutionManagementPayload>,
+) {
+  return apiRequest<Institution>(
+    `/admissions/institutions/${institutionId}/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}

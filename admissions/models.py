@@ -201,6 +201,39 @@ class Program(models.Model):
         db_index=True,
     )
 
+    # ------------------------------------------------------------
+    # ACADEMIC DATA VERIFICATION
+    # ------------------------------------------------------------
+
+    class DataStatus(models.TextChoices):
+        NEEDS_REVIEW = "NEEDS_REVIEW", "Needs Review"
+        PARTIAL = "PARTIAL", "Partial Data"
+        VERIFIED = "VERIFIED", "Verified"
+
+    data_status = models.CharField(
+        max_length=30,
+        choices=DataStatus.choices,
+        default=DataStatus.NEEDS_REVIEW,
+        db_index=True,
+    )
+
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="verified_programs",
+    )
+
+    verification_notes = models.TextField(
+        blank=True,
+    )
+
     notes = models.TextField(
         blank=True,
     )
@@ -243,7 +276,13 @@ class ProgramFeePlan(models.Model):
         on_delete=models.CASCADE,
         related_name="fee_plans",
     )
-
+    import_key = models.CharField(
+        max_length=255,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     name = models.CharField(
         max_length=120,
         default="Standard",
@@ -280,6 +319,39 @@ class ProgramFeePlan(models.Model):
     is_active = models.BooleanField(
         default=True,
         db_index=True,
+    )
+
+    # ------------------------------------------------------------
+    # FEE DATA VERIFICATION
+    # ------------------------------------------------------------
+
+    class DataStatus(models.TextChoices):
+        NEEDS_REVIEW = "NEEDS_REVIEW", "Needs Review"
+        PARTIAL = "PARTIAL", "Partial Data"
+        VERIFIED = "VERIFIED", "Verified"
+
+    data_status = models.CharField(
+        max_length=30,
+        choices=DataStatus.choices,
+        default=DataStatus.NEEDS_REVIEW,
+        db_index=True,
+    )
+
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="verified_fee_plans",
+    )
+
+    verification_notes = models.TextField(
+        blank=True,
     )
 
     notes = models.TextField(
