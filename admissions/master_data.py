@@ -1,9 +1,13 @@
 from decimal import Decimal
 
 from django.db import IntegrityError
+from django.utils import timezone
 from django.db.models import Q
 
 from rest_framework import serializers
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 
@@ -38,6 +42,18 @@ class ProgramManagementSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     fee_plans = serializers.SerializerMethodField()
+    verified_by = serializers.SerializerMethodField()
+
+    def get_verified_by(self, obj):
+        user = obj.verified_by
+        if not user:
+            return None
+        return {
+            "id": str(user.pk),
+            "username": user.username,
+            "email": user.email,
+            "display_name": user.get_full_name() or user.username,
+        }
 
     class Meta:
         model = Program
@@ -60,6 +76,10 @@ class ProgramManagementSerializer(serializers.ModelSerializer):
             "required_stream",
             "eligibility_review_required",
             "is_credit_transfer_available",
+            "data_status",
+            "verified_at",
+            "verified_by",
+            "verification_notes",
             "fee_plans",
             "is_active",
             "notes",
@@ -73,6 +93,10 @@ class ProgramManagementSerializer(serializers.ModelSerializer):
             "study_mode_display",
             "minimum_qualification_display",
             "fee_plans",
+            "data_status",
+            "verified_at",
+            "verified_by",
+            "verification_notes",
             "created_at",
             "updated_at",
         ]
@@ -134,6 +158,18 @@ class ProgramFeePlanManagementSerializer(
         source="program.institution.name",
         read_only=True,
     )
+    verified_by = serializers.SerializerMethodField()
+
+    def get_verified_by(self, obj):
+        user = obj.verified_by
+        if not user:
+            return None
+        return {
+            "id": str(user.pk),
+            "username": user.username,
+            "email": user.email,
+            "display_name": user.get_full_name() or user.username,
+        }
 
     class Meta:
         model = ProgramFeePlan
@@ -147,6 +183,10 @@ class ProgramFeePlanManagementSerializer(
             "registration_fee",
             "exam_fee",
             "other_fee",
+            "data_status",
+            "verified_at",
+            "verified_by",
+            "verification_notes",
             "is_active",
             "notes",
             "installments",
@@ -157,6 +197,10 @@ class ProgramFeePlanManagementSerializer(
             "id",
             "program_name",
             "institution_name",
+            "data_status",
+            "verified_at",
+            "verified_by",
+            "verification_notes",
             "created_at",
             "updated_at",
         ]
@@ -363,6 +407,31 @@ class ProgramManagementViewSet(ModelViewSet):
     def get_serializer_class(self):
         return ProgramManagementSerializer
 
+    @action(detail=True, methods=["post"], url_path="verification")
+    def verification(self, request, pk=None):
+        program = self.get_object()
+        data_status = str(request.data.get("data_status", "")).strip().upper()
+        allowed = {choice for choice, _label in Program.DataStatus.choices}
+        if data_status not in allowed:
+            return Response(
+                {"detail": "data_status must be NEEDS_REVIEW, PARTIAL, or VERIFIED."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if data_status == Program.DataStatus.VERIFIED:
+            program.data_status = data_status
+            program.verified_at = timezone.now()
+            program.verified_by = request.user
+            if "verification_notes" in request.data:
+                program.verification_notes = str(request.data.get("verification_notes") or "").strip()
+        else:
+            program.data_status = data_status
+            program.verified_at = None
+            program.verified_by = None
+            if "verification_notes" in request.data:
+                program.verification_notes = str(request.data.get("verification_notes") or "").strip()
+        program.save(update_fields=["data_status", "verified_at", "verified_by", "verification_notes", "updated_at"])
+        return Response(self.get_serializer(program).data)
+
     def get_queryset(self):
         queryset = (
             Program.objects
@@ -447,6 +516,31 @@ class ProgramFeePlanViewSet(ModelViewSet):
             IsAuthenticated(),
             CanViewAcademicMasterData(),
         ]
+
+    @action(detail=True, methods=["post"], url_path="verification")
+    def verification(self, request, pk=None):
+        fee_plan = self.get_object()
+        data_status = str(request.data.get("data_status", "")).strip().upper()
+        allowed = {choice for choice, _label in ProgramFeePlan.DataStatus.choices}
+        if data_status not in allowed:
+            return Response(
+                {"detail": "data_status must be NEEDS_REVIEW, PARTIAL, or VERIFIED."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if data_status == ProgramFeePlan.DataStatus.VERIFIED:
+            fee_plan.data_status = data_status
+            fee_plan.verified_at = timezone.now()
+            fee_plan.verified_by = request.user
+            if "verification_notes" in request.data:
+                fee_plan.verification_notes = str(request.data.get("verification_notes") or "").strip()
+        else:
+            fee_plan.data_status = data_status
+            fee_plan.verified_at = None
+            fee_plan.verified_by = None
+            if "verification_notes" in request.data:
+                fee_plan.verification_notes = str(request.data.get("verification_notes") or "").strip()
+        fee_plan.save(update_fields=["data_status", "verified_at", "verified_by", "verification_notes", "updated_at"])
+        return Response(self.get_serializer(fee_plan).data)
 
     def get_queryset(self):
         queryset = (

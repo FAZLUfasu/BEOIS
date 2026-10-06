@@ -453,6 +453,23 @@ def validate(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     }
 
 
+def verification_defaults(instance, computed_status: str, imported_note: str) -> dict[str, Any]:
+    """Return verification fields without downgrading an already verified record."""
+    if instance is not None and instance.data_status == instance.DataStatus.VERIFIED:
+        return {
+            "data_status": instance.data_status,
+            "verified_at": instance.verified_at,
+            "verified_by": instance.verified_by,
+            "verification_notes": instance.verification_notes,
+        }
+    return {
+        "data_status": computed_status,
+        "verified_at": None,
+        "verified_by": None,
+        "verification_notes": imported_note,
+    }
+
+
 def import_data(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     institution_map: dict[str, Institution] = {}
@@ -464,15 +481,18 @@ def import_data(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
             code = clean(row.get("institution_code")).upper()
             if not code:
                 continue
-            obj, created = Institution.objects.update_or_create(
-                code=code,
-                defaults={
-                    "name": clean(row.get("university_name")) or code,
-                    "short_name": code,
-                    "is_active": clean(row.get("status")).upper() != "INACTIVE",
-                    "notes": source_notes(row),
-                },
-            )
+            obj = Institution.objects.filter(code=code).first()
+            created = obj is None
+            if obj is None:
+                obj = Institution(code=code)
+            source_name = clean(row.get("university_name"))
+            if source_name:
+                obj.name = source_name
+            if not obj.name:
+                obj.name = ""
+            obj.is_active = clean(row.get("status")).upper() != "INACTIVE"
+            obj.notes = source_notes(row)
+            obj.save()
             institution_map[code] = obj
             counts[f"institutions_{'created' if created else 'updated'}"] += 1
 
@@ -482,29 +502,29 @@ def import_data(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
             if not key or not institution:
                 continue
             years, semesters = duration(row)
-            obj, created = Program.objects.update_or_create(
-                institution=institution,
-                code=key,
-                defaults={
-                    "name": clean(row.get("course_name")) or key,
-                    "level": level_from_name(row.get("course_name")),
-                    "duration_years": years,
-                    "duration_semesters": semesters,
-                    "study_mode": study_mode(row.get("study_mode")),
-                    "specialization": clean(row.get("specializations_raw")),
-                    "eligibility_text": clean(row.get("eligibility")),
-                    "minimum_qualification": "UNSPECIFIED",
-                    "required_stream": "",
-                    "eligibility_review_required": clean(row.get("status")).upper() not in {"", "READY"},
-                    "is_credit_transfer_available": False,
-                    "is_active": clean(row.get("status")).upper() != "INACTIVE",
-                    "data_status": program_data_status(row),
-                    "verified_at": None,
-                    "verified_by": None,
-                    "verification_notes": source_verification_note(row),
-                    "notes": source_notes(row),
-                },
-            )
+            obj = Program.objects.filter(institution=institution, code=key).first()
+            created = obj is None
+            if obj is None:
+                obj = Program(institution=institution, code=key)
+            obj.name = clean(row.get("course_name"))
+            obj.level = level_from_name(row.get("course_name"))
+            obj.duration_years = years
+            obj.duration_semesters = semesters
+            obj.study_mode = study_mode(row.get("study_mode"))
+            obj.specialization = clean(row.get("specializations_raw"))
+            obj.eligibility_text = clean(row.get("eligibility"))
+            obj.minimum_qualification = "UNSPECIFIED"
+            obj.required_stream = ""
+            obj.eligibility_review_required = clean(row.get("status")).upper() not in {"", "READY"}
+            obj.is_credit_transfer_available = False
+            obj.is_active = clean(row.get("status")).upper() != "INACTIVE"
+            obj.notes = source_notes(row)
+            obj.save()
+            verification = verification_defaults(obj if not created else None, program_data_status(row), source_verification_note(row))
+            if any(getattr(obj, key) != value for key, value in verification.items()):
+                for key, value in verification.items():
+                    setattr(obj, key, value)
+                obj.save(update_fields=[*verification.keys(), "updated_at"])
             program_map[key] = obj
             counts[f"programs_{'created' if created else 'updated'}"] += 1
 
@@ -529,23 +549,24 @@ def import_data(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
             if category != "STUDENT_FEE":
                 continue
 
-            obj, created = ProgramFeePlan.objects.update_or_create(
-                import_key=key,
-                defaults={
-                    "program": program,
-                    "name": student_plan_name(row),
-                    "student_total_fee": nullable_decimal(row.get("total_fee")),
-                    "registration_fee": nullable_decimal(row.get("admission_fee")),
-                    "exam_fee": nullable_decimal(row.get("exam_fee")),
-                    "other_fee": None,
-                    "is_active": clean(row.get("data_status")).upper() != "INACTIVE",
-                    "data_status": fee_plan_data_status(row),
-                    "verified_at": None,
-                    "verified_by": None,
-                    "verification_notes": source_verification_note(row),
-                    "notes": source_notes(row),
-                },
-            )
+            obj = ProgramFeePlan.objects.filter(import_key=key).first()
+            created = obj is None
+            if obj is None:
+                obj = ProgramFeePlan(import_key=key)
+            obj.program = program
+            obj.name = student_plan_name(row)
+            obj.student_total_fee = nullable_decimal(row.get("total_fee"))
+            obj.registration_fee = nullable_decimal(row.get("admission_fee"))
+            obj.exam_fee = nullable_decimal(row.get("exam_fee"))
+            obj.other_fee = None
+            obj.is_active = clean(row.get("data_status")).upper() != "INACTIVE"
+            obj.notes = source_notes(row)
+            obj.save()
+            verification = verification_defaults(obj if not created else None, fee_plan_data_status(row), source_verification_note(row))
+            if any(getattr(obj, key) != value for key, value in verification.items()):
+                for key, value in verification.items():
+                    setattr(obj, key, value)
+                obj.save(update_fields=[*verification.keys(), "updated_at"])
             fee_plan_map[key] = obj
             counts[f"fee_plans_{'created' if created else 'updated'}"] += 1
 
