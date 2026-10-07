@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 import {
   BarChart3,
   BookOpenCheck,
   Building2,
   CheckSquare2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   CircleDollarSign,
   FileSpreadsheet,
   GraduationCap,
@@ -34,6 +37,7 @@ interface NavigationItem {
   href: string;
   icon: LucideIcon;
   roles?: string[];
+  children?: NavigationItem[];
 
   /*
    * Used for sensitive system-level pages that
@@ -125,21 +129,39 @@ const navigation: NavigationSection[] = [
           "TELECALLER",
           "COUNSELOR",
         ],
+        children: [
+          {
+            name: "Master Data",
+            href: "/admissions/universities",
+            icon: Building2,
+            roles: [
+              "SUPER_ADMIN",
+              "FULL_ACCESS",
+              "CHAIRMAN",
+              "GENERAL_MANAGER",
+              "ADMISSION",
+              "MANAGER",
+              "DEPARTMENT_HEAD",
+              "TELECALLER",
+              "COUNSELOR",
+            ],
+          },
+          {
+            name: "Academic Master Import",
+            href: "/admissions/import",
+            icon: FileSpreadsheet,
+            roles: [
+              "SUPER_ADMIN",
+              "FULL_ACCESS",
+              "CHAIRMAN",
+              "GENERAL_MANAGER",
+              "ADMISSION",
+              "MANAGER",
+              "DEPARTMENT_HEAD",
+            ],
+          },
+        ],
       },
-{
-  name: "Academic Master Import",
-  href: "/admissions/import",
-  icon: FileSpreadsheet,
-  roles: [
-    "SUPER_ADMIN",
-    "FULL_ACCESS",
-    "CHAIRMAN",
-    "GENERAL_MANAGER",
-    "ADMISSION",
-    "MANAGER",
-    "DEPARTMENT_HEAD",
-  ],
-},
       {
         name: "Education Process",
         href: "/students",
@@ -242,6 +264,11 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
 
+  const [expandedItems, setExpandedItems] =
+    useState<string[]>([
+      "Academic Master Data",
+    ]);
+
   const { user } = useAuth();
 
   const roleCodes = new Set(
@@ -293,14 +320,28 @@ export function Sidebar({
     );
   }
 
+  function filterNavigationItems(
+    items: NavigationItem[],
+  ): NavigationItem[] {
+    return items
+      .filter(canSee)
+      .map((item) => ({
+        ...item,
+        children: item.children
+          ? filterNavigationItems(
+              item.children,
+            )
+          : undefined,
+      }));
+  }
+
   const visibleNavigation =
     navigation
       .map((section) => ({
         ...section,
-        items:
-          section.items.filter(
-            canSee,
-          ),
+        items: filterNavigationItems(
+          section.items,
+        ),
       }))
       .filter(
         (section) =>
@@ -387,6 +428,185 @@ export function Sidebar({
                           : pathname.startsWith(
                               item.href,
                             );
+
+                      const hasChildren =
+                        Boolean(
+                          item.children?.length,
+                        );
+
+                      const childActive =
+                        item.children?.some(
+                          (child) =>
+                            pathname.startsWith(
+                              child.href,
+                            ),
+                        ) ?? false;
+
+                      const expanded =
+                        expandedItems.includes(
+                          item.name,
+                        );
+
+                      if (
+                        hasChildren
+                      ) {
+                        return (
+                          <div
+                            key={item.name}
+                          >
+                            <div
+                              className={cn(
+                                "group flex h-11 items-center rounded-xl text-[13px] font-medium transition-all",
+                                collapsed
+                                  ? "justify-center px-0"
+                                  : "gap-2 px-3",
+                                active ||
+                                  childActive
+                                  ? "bg-white text-[var(--sidebar)] shadow-sm"
+                                  : "text-blue-50/75 hover:bg-white/8 hover:text-white",
+                              )}
+                            >
+                              <Link
+                                href={
+                                  item.href
+                                }
+                                onClick={
+                                  onMobileClose
+                                }
+                                title={
+                                  collapsed
+                                    ? item.name
+                                    : undefined
+                                }
+                                className={cn(
+                                  "flex min-w-0 flex-1 items-center",
+                                  collapsed
+                                    ? "justify-center"
+                                    : "gap-3",
+                                )}
+                              >
+                                <Icon
+                                  size={19}
+                                  strokeWidth={
+                                    active ||
+                                    childActive
+                                      ? 2.3
+                                      : 1.9
+                                  }
+                                  className="shrink-0"
+                                />
+
+                                {!collapsed && (
+                                  <span className="truncate">
+                                    {
+                                      item.name
+                                    }
+                                  </span>
+                                )}
+                              </Link>
+
+                              {!collapsed && (
+                                <button
+                                  type="button"
+                                  aria-label={
+                                    expanded
+                                      ? `Collapse ${item.name}`
+                                      : `Expand ${item.name}`
+                                  }
+                                  onClick={() =>
+                                    setExpandedItems(
+                                      (current) =>
+                                        current.includes(
+                                          item.name,
+                                        )
+                                          ? current.filter(
+                                              (
+                                                name,
+                                              ) =>
+                                                name !==
+                                                item.name,
+                                            )
+                                          : [
+                                              ...current,
+                                              item.name,
+                                            ],
+                                    )
+                                  }
+                                  className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-black/5"
+                                >
+                                  {expanded ? (
+                                    <ChevronUp
+                                      size={
+                                        16
+                                      }
+                                    />
+                                  ) : (
+                                    <ChevronDown
+                                      size={
+                                        16
+                                      }
+                                    />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+
+                            {!collapsed &&
+                              expanded && (
+                                <div className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-3">
+                                  {item.children?.map(
+                                    (
+                                      child,
+                                    ) => {
+                                      const ChildIcon =
+                                        child.icon;
+
+                                      const childIsActive =
+                                        child.href ===
+                                        "/"
+                                          ? pathname ===
+                                            "/"
+                                          : pathname.startsWith(
+                                              child.href,
+                                            );
+
+                                      return (
+                                        <Link
+                                          key={
+                                            child.name
+                                          }
+                                          href={
+                                            child.href
+                                          }
+                                          onClick={
+                                            onMobileClose
+                                          }
+                                          className={cn(
+                                            "flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-all",
+                                            childIsActive
+                                              ? "bg-white/90 text-[var(--sidebar)]"
+                                              : "text-blue-50/65 hover:bg-white/8 hover:text-white",
+                                          )}
+                                        >
+                                          <ChildIcon
+                                            size={
+                                              15
+                                            }
+                                          />
+                                          <span className="truncate">
+                                            {
+                                              child.name
+                                            }
+                                          </span>
+                                        </Link>
+                                      );
+                                    },
+                                  )}
+                                </div>
+                              )}
+                          </div>
+                        );
+                      }
 
                       return (
                         <Link
