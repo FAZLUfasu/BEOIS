@@ -20,6 +20,10 @@ import type {
   InstitutionManagementPayload,
   Program,
   ProgramFeePlan,
+  ProgramManagementPayload,
+  ProgramVerificationPayload,
+  ProgramFeePlanManagementPayload,
+  ProgramFeePlanVerificationPayload,
   QualifiedLeadFilters,
   QualifiedLeadHandoff,
   RecordAdmissionPaymentPayload,
@@ -219,7 +223,70 @@ export function updateInstitution(
     },
   );
 }
+export function createProgram(payload: ProgramManagementPayload) {
+  return apiRequest<Program>("/admissions/programs/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
 
+export function updateProgram(
+  programId: string,
+  payload: Partial<ProgramManagementPayload>,
+) {
+  return apiRequest<Program>(`/admissions/programs/${programId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function verifyProgram(
+  programId: string,
+  payload: ProgramVerificationPayload,
+) {
+  return apiRequest<Program>(
+    `/admissions/programs/${programId}/verification/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function createFeePlan(
+  payload: ProgramFeePlanManagementPayload,
+) {
+  return apiRequest<ProgramFeePlan>("/admissions/fee-plans/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateFeePlan(
+  feePlanId: string,
+  payload: Partial<ProgramFeePlanManagementPayload>,
+) {
+  return apiRequest<ProgramFeePlan>(
+    `/admissions/fee-plans/${feePlanId}/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function verifyFeePlan(
+  feePlanId: string,
+  payload: ProgramFeePlanVerificationPayload,
+) {
+  return apiRequest<ProgramFeePlan>(
+    `/admissions/fee-plans/${feePlanId}/verification/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
 /* ================================================================
    QUALIFIED LEADS
    ================================================================ */

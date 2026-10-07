@@ -140,7 +140,53 @@ export interface Program {
   created_at: string;
   updated_at: string;
 }
+export interface ProgramManagementPayload {
+  institution: string;
+  name: string;
+  code: string;
+  level: string;
+  duration_years: number | null;
+  duration_semesters: number | null;
+  study_mode: string;
+  specialization: string;
+  eligibility_text: string;
+  minimum_qualification: string;
+  required_stream: string;
+  eligibility_review_required: boolean;
+  is_credit_transfer_available: boolean;
+  is_active: boolean;
+  notes: string;
+}
 
+export interface ProgramVerificationPayload {
+  data_status: string;
+  verification_notes?: string;
+}
+
+export interface ProgramFeeInstallmentPayload {
+  installment_number: number;
+  label: string;
+  amount: string;
+  due_stage: string;
+  notes: string;
+}
+
+export interface ProgramFeePlanManagementPayload {
+  program: string;
+  name: string;
+  student_total_fee: string;
+  registration_fee: string;
+  exam_fee: string;
+  other_fee: string;
+  is_active: boolean;
+  notes: string;
+  installments: ProgramFeeInstallmentPayload[];
+}
+
+export interface ProgramFeePlanVerificationPayload {
+  data_status: string;
+  verification_notes?: string;
+}
 /* ================================================================
    ADMISSION WORKFLOW
    ================================================================ */

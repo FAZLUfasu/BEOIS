@@ -28,10 +28,16 @@ import {
 } from "lucide-react";
 
 import {
+  createFeePlan,
   createInstitution,
+  createProgram,
   getManagedInstitutions,
   getPrograms,
+  updateFeePlan,
   updateInstitution,
+  updateProgram,
+  verifyFeePlan,
+  verifyProgram,
 } from "@/lib/api/admissions";
 
 import {
@@ -42,7 +48,10 @@ import type {
   Institution,
   InstitutionManagementPayload,
   Program,
+  ProgramFeeInstallmentPayload,
   ProgramFeePlan,
+  ProgramFeePlanManagementPayload,
+  ProgramManagementPayload,
 } from "@/types/admissions";
 
 const EMPTY_FORM: InstitutionManagementPayload = {
@@ -202,10 +211,16 @@ function FeePlanCard({
   plan,
   expanded,
   onToggle,
+  canManage,
+  onEdit,
+  onVerify,
 }: {
   plan: ProgramFeePlan;
   expanded: boolean;
   onToggle: () => void;
+  canManage: boolean;
+  onEdit: () => void;
+  onVerify: (status: string) => void;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
@@ -244,11 +259,28 @@ function FeePlanCard({
           </div>
         </div>
 
-        {expanded ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {canManage && (
+            <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50">
+              <Edit3 className="h-3 w-3" />
+              Edit
+            </button>
+          )}
+          {canManage && (
+            <select
+              value={plan.data_status}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => { event.stopPropagation(); onVerify(event.target.value); }}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-medium text-slate-600"
+              aria-label="Fee plan verification status"
+            >
+              <option value="NEEDS_REVIEW">Needs review</option>
+              <option value="PARTIAL">Partial</option>
+              <option value="VERIFIED">Verified</option>
+            </select>
+          )}
+          {expanded ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+        </div>
       </button>
 
       {expanded && (
@@ -383,10 +415,22 @@ function ProgramCard({
   program,
   selected,
   onSelect,
+  canManage,
+  onEdit,
+  onAddFeePlan,
+  onEditFeePlan,
+  onVerifyFeePlan,
+  onVerify,
 }: {
   program: Program;
   selected: boolean;
   onSelect: () => void;
+  canManage: boolean;
+  onEdit: () => void;
+  onAddFeePlan: () => void;
+  onEditFeePlan: (plan: ProgramFeePlan) => void;
+  onVerifyFeePlan: (plan: ProgramFeePlan, status: string) => void;
+  onVerify: (status: string) => void;
 }) {
   const [expanded, setExpanded] =
     useState(false);
@@ -486,7 +530,25 @@ function ProgramCard({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {canManage && (
+                <>
+                  <button type="button" onClick={onEdit} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"><Edit3 className="h-3.5 w-3.5" />Edit Course</button>
+                  <button type="button" onClick={onAddFeePlan} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"><Plus className="h-3.5 w-3.5" />Add Fee Plan</button>
+                </>
+              )}
+              {canManage && (
+                <select
+                  value={program.data_status}
+                  onChange={(event) => onVerify(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600"
+                  aria-label="Course verification status"
+                >
+                  <option value="NEEDS_REVIEW">Needs review</option>
+                  <option value="PARTIAL">Partial</option>
+                  <option value="VERIFIED">Verified</option>
+                </select>
+              )}
               <label
                 className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
                 onClick={(event) =>
@@ -631,11 +693,10 @@ function ProgramCard({
                         expanded={expandedPlans.has(
                           plan.id,
                         )}
-                        onToggle={() =>
-                          toggleFeePlan(
-                            plan.id,
-                          )
-                        }
+                        onToggle={() => toggleFeePlan(plan.id)}
+                        canManage={canManage}
+                        onEdit={() => onEditFeePlan(plan)}
+                        onVerify={(status) => onVerifyFeePlan(plan, status)}
                       />
                     ),
                   )
@@ -656,6 +717,227 @@ function ProgramCard({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+function ProgramManagementModal({
+  initial,
+  institutions,
+  editing,
+  saving,
+  onClose,
+  onSave,
+}: {
+  initial: ProgramManagementPayload;
+  institutions: Institution[];
+  editing: boolean;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (payload: ProgramManagementPayload) => Promise<void>;
+}) {
+  const [form, setForm] = useState(initial);
+
+  useEffect(() => setForm(initial), [initial]);
+
+  function update<K extends keyof ProgramManagementPayload>(
+    key: K,
+    value: ProgramManagementPayload[K],
+  ) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onSave({
+      ...form,
+      name: form.name.trim(),
+      code: form.code.trim().toUpperCase(),
+      level: form.level.trim(),
+      study_mode: form.study_mode.trim(),
+      specialization: form.specialization.trim(),
+      eligibility_text: form.eligibility_text.trim(),
+      minimum_qualification: form.minimum_qualification.trim(),
+      required_stream: form.required_stream.trim(),
+      notes: form.notes.trim(),
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              {editing ? "Edit Course / Programme" : "Add Course / Programme"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Maintain the academic master record used by admissions and telecallers.
+            </p>
+          </div>
+          <button type="button" disabled={saving} onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-6 py-6">
+          <form onSubmit={submit} className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700">University *</span>
+                <select required value={form.institution} onChange={(e) => update("institution", e.target.value)} className={inputClassName()}>
+                  <option value="">Select university</option>
+                  {institutions.map((institution) => (
+                    <option key={institution.id} value={institution.id}>{institution.name} ({institution.code})</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700">Course Name *</span>
+                <input required value={form.name} onChange={(e) => update("name", e.target.value)} className={inputClassName()} />
+              </label>
+
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Course Code</span><input value={form.code} onChange={(e) => update("code", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Level</span><input value={form.level} onChange={(e) => update("level", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Study Mode</span><input value={form.study_mode} onChange={(e) => update("study_mode", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Specialization</span><input value={form.specialization} onChange={(e) => update("specialization", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Duration — Years</span><input type="number" min="0" step="0.5" value={form.duration_years ?? ""} onChange={(e) => update("duration_years", e.target.value === "" ? null : Number(e.target.value))} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Duration — Semesters</span><input type="number" min="0" step="1" value={form.duration_semesters ?? ""} onChange={(e) => update("duration_semesters", e.target.value === "" ? null : Number(e.target.value))} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Minimum Qualification</span><input value={form.minimum_qualification} onChange={(e) => update("minimum_qualification", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Required Stream</span><input value={form.required_stream} onChange={(e) => update("required_stream", e.target.value)} className={inputClassName()} /></label>
+
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <input type="checkbox" checked={form.eligibility_review_required} onChange={(e) => update("eligibility_review_required", e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+                <span className="text-sm font-medium text-slate-700">Eligibility review required</span>
+              </label>
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <input type="checkbox" checked={form.is_credit_transfer_available} onChange={(e) => update("is_credit_transfer_available", e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+                <span className="text-sm font-medium text-slate-700">Credit transfer available</span>
+              </label>
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 md:col-span-2">
+                <input type="checkbox" checked={form.is_active} onChange={(e) => update("is_active", e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+                <span className="text-sm font-medium text-slate-700">Active course</span>
+              </label>
+
+              <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">Eligibility</span><textarea rows={4} value={form.eligibility_text} onChange={(e) => update("eligibility_text", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">Notes</span><textarea rows={3} value={form.notes} onChange={(e) => update("notes", e.target.value)} className={inputClassName()} /></label>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-5">
+              <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60">
+                {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}
+                {editing ? "Save Course" : "Create Course"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeePlanManagementModal({
+  initial,
+  program,
+  editing,
+  saving,
+  onClose,
+  onSave,
+}: {
+  initial: ProgramFeePlanManagementPayload;
+  program: Program;
+  editing: boolean;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (payload: ProgramFeePlanManagementPayload) => Promise<void>;
+}) {
+  const [form, setForm] = useState(initial);
+  useEffect(() => setForm(initial), [initial]);
+
+  function update<K extends keyof ProgramFeePlanManagementPayload>(key: K, value: ProgramFeePlanManagementPayload[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateInstallment(index: number, key: keyof ProgramFeeInstallmentPayload, value: string) {
+    setForm((current) => ({
+      ...current,
+      installments: current.installments.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item),
+    }));
+  }
+
+  function addInstallment() {
+    setForm((current) => ({
+      ...current,
+      installments: [...current.installments, { installment_number: current.installments.length + 1, label: "", amount: "", due_stage: "", notes: "" }],
+    }));
+  }
+
+  function removeInstallment(index: number) {
+    setForm((current) => ({
+      ...current,
+      installments: current.installments.filter((_, i) => i !== index).map((item, i) => ({ ...item, installment_number: i + 1 })),
+    }));
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onSave({
+      ...form,
+      program: program.id,
+      name: form.name.trim(),
+      student_total_fee: form.student_total_fee.trim(),
+      registration_fee: form.registration_fee.trim(),
+      exam_fee: form.exam_fee.trim(),
+      other_fee: form.other_fee.trim(),
+      notes: form.notes.trim(),
+      installments: form.installments.map((item, index) => ({ ...item, installment_number: index + 1, label: item.label.trim(), amount: String(item.amount).trim(), due_stage: item.due_stage.trim(), notes: item.notes.trim() })),
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div><h2 className="text-lg font-semibold text-slate-950">{editing ? "Edit Fee Plan" : "Add Fee Plan"}</h2><p className="mt-1 text-sm text-slate-500">Fee structure for {program.name}.</p></div>
+          <button type="button" disabled={saving} onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="overflow-y-auto px-6 py-6">
+          <form onSubmit={submit} className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">Fee Plan Name *</span><input required value={form.name} onChange={(e) => update("name", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Student Total Fee</span><input inputMode="decimal" value={form.student_total_fee} onChange={(e) => update("student_total_fee", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Registration Fee</span><input inputMode="decimal" value={form.registration_fee} onChange={(e) => update("registration_fee", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Exam Fee</span><input inputMode="decimal" value={form.exam_fee} onChange={(e) => update("exam_fee", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Other Fee</span><input inputMode="decimal" value={form.other_fee} onChange={(e) => update("other_fee", e.target.value)} className={inputClassName()} /></label>
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 md:col-span-2"><input type="checkbox" checked={form.is_active} onChange={(e) => update("is_active", e.target.checked)} className="h-4 w-4 rounded border-slate-300" /><span className="text-sm font-medium text-slate-700">Active fee plan</span></label>
+              <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">Notes</span><textarea rows={3} value={form.notes} onChange={(e) => update("notes", e.target.value)} className={inputClassName()} /></label>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-slate-900">Installment Schedule</h3><p className="mt-1 text-xs text-slate-500">Maintain the actual installment structure for this fee plan.</p></div><button type="button" onClick={addInstallment} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"><Plus className="h-3.5 w-3.5" />Add Installment</button></div>
+              <div className="mt-3 space-y-3">
+                {form.installments.map((item, index) => (
+                  <div key={`${index}-${item.installment_number}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Installment {index + 1}</span><button type="button" onClick={() => removeInstallment(index)} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600"><X className="h-4 w-4" /></button></div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="space-y-1"><span className="text-xs font-medium text-slate-600">Label</span><input value={item.label} onChange={(e) => updateInstallment(index, "label", e.target.value)} className={inputClassName()} /></label>
+                      <label className="space-y-1"><span className="text-xs font-medium text-slate-600">Amount</span><input inputMode="decimal" value={item.amount} onChange={(e) => updateInstallment(index, "amount", e.target.value)} className={inputClassName()} /></label>
+                      <label className="space-y-1"><span className="text-xs font-medium text-slate-600">Due Stage</span><input value={item.due_stage} onChange={(e) => updateInstallment(index, "due_stage", e.target.value)} className={inputClassName()} /></label>
+                      <label className="space-y-1"><span className="text-xs font-medium text-slate-600">Notes</span><input value={item.notes} onChange={(e) => updateInstallment(index, "notes", e.target.value)} className={inputClassName()} /></label>
+                    </div>
+                  </div>
+                ))}
+                {form.installments.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs text-slate-500">No installments added.</div>}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-5"><button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button><button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60">{saving && <LoaderCircle className="h-4 w-4 animate-spin" />}{editing ? "Save Fee Plan" : "Create Fee Plan"}</button></div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
@@ -860,6 +1142,21 @@ export function UniversitiesWorkspace() {
     useState<InstitutionManagementPayload>(
       EMPTY_FORM,
     );
+
+  const [programModal, setProgramModal] = useState<{
+    mode: "create" | "edit";
+    programId: string | null;
+    initial: ProgramManagementPayload;
+  } | null>(null);
+
+  const [feePlanModal, setFeePlanModal] = useState<{
+    mode: "create" | "edit";
+    programId: string;
+    feePlanId: string | null;
+    initial: ProgramFeePlanManagementPayload;
+  } | null>(null);
+
+  const [managementSaving, setManagementSaving] = useState(false);
 
   const [error, setError] =
     useState("");
@@ -1188,6 +1485,110 @@ export function UniversitiesWorkspace() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openCreateProgram(institutionId: string) {
+    if (!canManage) return;
+    setError("");
+    setSuccess("");
+    setProgramModal({ mode: "create", programId: null, initial: { institution: institutionId, name: "", code: "", level: "", duration_years: null, duration_semesters: null, study_mode: "", specialization: "", eligibility_text: "", minimum_qualification: "", required_stream: "", eligibility_review_required: false, is_credit_transfer_available: false, is_active: true, notes: "" } });
+  }
+
+  function openEditProgram(program: Program) {
+    if (!canManage) return;
+    setError("");
+    setSuccess("");
+    setProgramModal({ mode: "edit", programId: program.id, initial: { institution: program.institution, name: program.name, code: program.code, level: program.level, duration_years: program.duration_years, duration_semesters: program.duration_semesters, study_mode: program.study_mode, specialization: program.specialization, eligibility_text: program.eligibility_text, minimum_qualification: program.minimum_qualification, required_stream: program.required_stream, eligibility_review_required: program.eligibility_review_required, is_credit_transfer_available: program.is_credit_transfer_available, is_active: program.is_active, notes: program.notes } });
+  }
+
+  function openCreateFeePlan(programId: string) {
+    if (!canManage) return;
+    setError("");
+    setSuccess("");
+    setFeePlanModal({ mode: "create", programId, feePlanId: null, initial: { program: programId, name: "", student_total_fee: "", registration_fee: "", exam_fee: "", other_fee: "", is_active: true, notes: "", installments: [] } });
+  }
+
+  function openEditFeePlan(program: Program, plan: ProgramFeePlan) {
+    if (!canManage) return;
+    setError("");
+    setSuccess("");
+    setFeePlanModal({ mode: "edit", programId: program.id, feePlanId: plan.id, initial: { program: program.id, name: plan.name, student_total_fee: plan.student_total_fee, registration_fee: plan.registration_fee, exam_fee: plan.exam_fee, other_fee: plan.other_fee, is_active: plan.is_active, notes: plan.notes, installments: plan.installments.map((item) => ({ installment_number: item.installment_number, label: item.label, amount: item.amount, due_stage: item.due_stage, notes: item.notes })) } });
+  }
+
+  async function saveProgram(payload: ProgramManagementPayload) {
+    if (!canManage) return;
+    setManagementSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      if (programModal?.mode === "edit" && programModal.programId) {
+        await updateProgram(programModal.programId, payload);
+        setSuccess("Course updated successfully.");
+      } else {
+        await createProgram(payload);
+        setSuccess("Course created successfully.");
+      }
+      setProgramModal(null);
+      await loadPrograms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save course.");
+    } finally {
+      setManagementSaving(false);
+    }
+  }
+
+  async function saveFeePlan(payload: ProgramFeePlanManagementPayload) {
+    if (!canManage) return;
+    setManagementSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      if (feePlanModal?.mode === "edit" && feePlanModal.feePlanId) {
+        await updateFeePlan(feePlanModal.feePlanId, payload);
+        setSuccess("Fee plan updated successfully.");
+      } else {
+        await createFeePlan(payload);
+        setSuccess("Fee plan created successfully.");
+      }
+      setFeePlanModal(null);
+      await loadPrograms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save fee plan.");
+    } finally {
+      setManagementSaving(false);
+    }
+  }
+
+  async function setProgramVerification(programId: string, dataStatus: string) {
+    if (!canManage) return;
+    setManagementSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await verifyProgram(programId, { data_status: dataStatus });
+      setSuccess("Course verification status updated.");
+      await loadPrograms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update course verification.");
+    } finally {
+      setManagementSaving(false);
+    }
+  }
+
+  async function setFeePlanVerification(feePlanId: string, dataStatus: string) {
+    if (!canManage) return;
+    setManagementSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await verifyFeePlan(feePlanId, { data_status: dataStatus });
+      setSuccess("Fee plan verification status updated.");
+      await loadPrograms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update fee plan verification.");
+    } finally {
+      setManagementSaving(false);
     }
   }
 
@@ -1929,35 +2330,32 @@ export function UniversitiesWorkspace() {
                               </p>
                             </div>
 
-                            <span className="text-xs font-medium text-slate-400">
-                              {
-                                institutionPrograms.length
-                              }{" "}
-                              course
-                              {institutionPrograms.length ===
-                              1
-                                ? ""
-                                : "s"}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {canManage && (
+                                <button type="button" onClick={() => openCreateProgram(institution.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800">
+                                  <Plus className="h-3.5 w-3.5" />
+                                  Add Course
+                                </button>
+                              )}
+                              <span className="text-xs font-medium text-slate-400">
+                                {institutionPrograms.length} course{institutionPrograms.length === 1 ? "" : "s"}
+                              </span>
+                            </div>
                           </div>
 
                           {institutionPrograms.map(
                             (program) => (
                               <ProgramCard
-                                key={
-                                  program.id
-                                }
-                                program={
-                                  program
-                                }
-                                selected={selectedPrograms.has(
-                                  program.id,
-                                )}
-                                onSelect={() =>
-                                  toggleProgramSelection(
-                                    program.id,
-                                  )
-                                }
+                                key={program.id}
+                                program={program}
+                                selected={selectedPrograms.has(program.id)}
+                                onSelect={() => toggleProgramSelection(program.id)}
+                                canManage={canManage}
+                                onEdit={() => openEditProgram(program)}
+                                onAddFeePlan={() => openCreateFeePlan(program.id)}
+                                onEditFeePlan={(plan) => openEditFeePlan(program, plan)}
+                                onVerify={(status) => void setProgramVerification(program.id, status)}
+                                onVerifyFeePlan={(plan, status) => void setFeePlanVerification(plan.id, status)}
                               />
                             ),
                           )}
@@ -1971,6 +2369,32 @@ export function UniversitiesWorkspace() {
           )
         )}
       </div>
+
+      {programModal && canManage && (
+        <ProgramManagementModal
+          initial={programModal.initial}
+          institutions={institutions}
+          editing={programModal.mode === "edit"}
+          saving={managementSaving}
+          onClose={() => { if (!managementSaving) setProgramModal(null); }}
+          onSave={saveProgram}
+        />
+      )}
+
+      {feePlanModal && canManage && (() => {
+        const modalProgram = programs.find((program) => program.id === feePlanModal.programId);
+        if (!modalProgram) return null;
+        return (
+          <FeePlanManagementModal
+            initial={feePlanModal.initial}
+            program={modalProgram}
+            editing={feePlanModal.mode === "edit"}
+            saving={managementSaving}
+            onClose={() => { if (!managementSaving) setFeePlanModal(null); }}
+            onSave={saveFeePlan}
+          />
+        );
+      })()}
 
       {/* ============================================================
           COMPARISON LIMIT
