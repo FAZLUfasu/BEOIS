@@ -521,9 +521,9 @@ def import_data(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
             obj.notes = source_notes(row)
             obj.save()
             verification = verification_defaults(obj if not created else None, program_data_status(row), source_verification_note(row))
-            if any(getattr(obj, key) != value for key, value in verification.items()):
-                for key, value in verification.items():
-                    setattr(obj, key, value)
+            if any(getattr(obj, verification_key) != value for verification_key, value in verification.items()):
+                for verification_key, value in verification.items():
+                    setattr(obj, verification_key, value)
                 obj.save(update_fields=[*verification.keys(), "updated_at"])
             program_map[key] = obj
             counts[f"programs_{'created' if created else 'updated'}"] += 1
@@ -563,9 +563,9 @@ def import_data(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
             obj.notes = source_notes(row)
             obj.save()
             verification = verification_defaults(obj if not created else None, fee_plan_data_status(row), source_verification_note(row))
-            if any(getattr(obj, key) != value for key, value in verification.items()):
-                for key, value in verification.items():
-                    setattr(obj, key, value)
+            if any(getattr(obj, verification_key) != value for verification_key, value in verification.items()):
+                for verification_key, value in verification.items():
+                    setattr(obj, verification_key, value)
                 obj.save(update_fields=[*verification.keys(), "updated_at"])
             fee_plan_map[key] = obj
             counts[f"fee_plans_{'created' if created else 'updated'}"] += 1
