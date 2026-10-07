@@ -17,11 +17,13 @@ import type {
   ConvertLeadPayload,
   EnrollmentPayload,
   Institution,
+  InstitutionManagementPayload,
   Program,
-  RecordAdmissionPaymentPayload,
-  UniversityApplicationPayload,
+  ProgramFeePlan,
   QualifiedLeadFilters,
   QualifiedLeadHandoff,
+  RecordAdmissionPaymentPayload,
+  UniversityApplicationPayload,
 } from "@/types/admissions";
 
 function buildQuery(
@@ -48,6 +50,10 @@ function buildQuery(
     : "";
 }
 
+/* ================================================================
+   ADMISSIONS
+   ================================================================ */
+
 export function getAdmissions(
   filters: AdmissionFilters = {},
 ) {
@@ -55,13 +61,11 @@ export function getAdmissions(
     `/admissions/${buildQuery({
       search: filters.search,
       status: filters.status,
-      institution:
-        filters.institution,
+      institution: filters.institution,
       program: filters.program,
       vertical: filters.vertical,
       channel: filters.channel,
-      assigned_to:
-        filters.assigned_to,
+      assigned_to: filters.assigned_to,
       partner: filters.partner,
     })}`,
   );
@@ -99,6 +103,10 @@ export function getEnrollmentPendingAdmissions() {
   );
 }
 
+/* ================================================================
+   ACADEMIC MASTER DATA
+   ================================================================ */
+
 export function getInstitutions(
   active = true,
 ) {
@@ -106,6 +114,24 @@ export function getInstitutions(
     `/admissions/institutions/?active=${
       active ? "true" : "false"
     }`,
+  );
+}
+
+export function getManagedInstitutions(
+  options: InstitutionSearchOptions = {},
+) {
+  const query = buildQuery({
+    active:
+      options.active === undefined
+        ? undefined
+        : options.active
+          ? "true"
+          : "false",
+    search: options.search,
+  });
+
+  return apiRequest<Institution[]>(
+    `/admissions/institutions/${query}`,
   );
 }
 
@@ -126,8 +152,7 @@ export function getPrograms(
           ? "true"
           : "false",
     credit_transfer:
-      options.creditTransfer ===
-      undefined
+      options.creditTransfer === undefined
         ? undefined
         : options.creditTransfer
           ? "true"
@@ -139,6 +164,66 @@ export function getPrograms(
     `/admissions/programs/${query}`,
   );
 }
+
+export function getFeePlans(
+  options: {
+    program?: string;
+    institution?: string;
+    active?: boolean;
+    search?: string;
+  } = {},
+) {
+  const query = buildQuery({
+    program: options.program,
+    institution: options.institution,
+    active:
+      options.active === undefined
+        ? "true"
+        : options.active
+          ? "true"
+          : "false",
+    search: options.search,
+  });
+
+  return apiRequest<ProgramFeePlan[]>(
+    `/admissions/fee-plans/${query}`,
+  );
+}
+
+export interface InstitutionSearchOptions {
+  active?: boolean;
+  search?: string;
+}
+
+export function createInstitution(
+  payload: InstitutionManagementPayload,
+) {
+  return apiRequest<Institution>(
+    "/admissions/institutions/",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function updateInstitution(
+  institutionId: string,
+  payload: Partial<InstitutionManagementPayload>,
+) {
+  return apiRequest<Institution>(
+    `/admissions/institutions/${institutionId}/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+/* ================================================================
+   QUALIFIED LEADS
+   ================================================================ */
+
 export function getQualifiedLeadHandoffs(
   filters: QualifiedLeadFilters = {},
 ) {
@@ -150,12 +235,11 @@ export function getQualifiedLeadHandoffs(
     campaign: filters.campaign,
   });
 
-  return apiRequest<
-    QualifiedLeadHandoff[]
-  >(
+  return apiRequest<QualifiedLeadHandoff[]>(
     `/admissions/qualified-leads/${query}`,
   );
 }
+
 export function convertLeadToAdmission(
   payload: ConvertLeadPayload,
 ) {
@@ -167,6 +251,10 @@ export function convertLeadToAdmission(
     },
   );
 }
+
+/* ================================================================
+   ADMISSION WORKFLOW
+   ================================================================ */
 
 export function changeAdmissionStatus(
   admissionId: string,
@@ -285,6 +373,10 @@ export function markAdmissionNotEligible(
   );
 }
 
+/* ================================================================
+   FEES / PAYMENTS
+   ================================================================ */
+
 export function getAdmissionFees(
   admissionId: string,
 ) {
@@ -335,6 +427,10 @@ export function getAdmissionFeeSummary(
   );
 }
 
+/* ================================================================
+   UNIVERSITY APPLICATION / ENROLLMENT
+   ================================================================ */
+
 export function submitUniversityApplication(
   admissionId: string,
   payload: UniversityApplicationPayload,
@@ -372,67 +468,6 @@ export function completeAdmission(
       body: JSON.stringify({
         notes,
       }),
-    },
-  );
-}
-export interface InstitutionSearchOptions {
-  active?: boolean;
-  search?: string;
-}
-
-export interface InstitutionManagementPayload {
-  name: string;
-  short_name?: string;
-  code: string;
-  state?: string;
-  city?: string;
-  website?: string;
-  contact_person?: string;
-  contact_phone?: string;
-  contact_email?: string;
-  is_active?: boolean;
-  notes?: string;
-}
-
-export function getManagedInstitutions(
-  options: InstitutionSearchOptions = {},
-) {
-  const query = buildQuery({
-    active:
-      options.active === undefined
-        ? undefined
-        : options.active
-          ? "true"
-          : "false",
-    search: options.search,
-  });
-
-  return apiRequest<Institution[]>(
-    `/admissions/institutions/${query}`,
-  );
-}
-
-export function createInstitution(
-  payload: InstitutionManagementPayload,
-) {
-  return apiRequest<Institution>(
-    "/admissions/institutions/",
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    },
-  );
-}
-
-export function updateInstitution(
-  institutionId: string,
-  payload: Partial<InstitutionManagementPayload>,
-) {
-  return apiRequest<Institution>(
-    `/admissions/institutions/${institutionId}/`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(payload),
     },
   );
 }

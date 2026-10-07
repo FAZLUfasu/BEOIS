@@ -43,23 +43,107 @@ export interface Institution {
   created_at: string;
   updated_at: string;
 }
+export interface InstitutionManagementPayload {
+  name: string;
+  short_name: string;
+  code: string;
+  state: string;
+  city: string;
+  website: string;
+  contact_person: string;
+  contact_phone: string;
+  contact_email: string;
+  is_active: boolean;
+  notes: string;
+}
+
+/* ================================================================
+   ACADEMIC MASTER DATA
+   ================================================================ */
+
+export interface AcademicVerifiedUser {
+  id: string;
+  username: string;
+  email: string;
+  display_name: string;
+}
+
+export interface ProgramFeeInstallment {
+  id: string;
+  installment_number: number;
+  label: string;
+  amount: string;
+  due_stage: string;
+  notes: string;
+}
+
+export interface ProgramFeePlan {
+  id: string;
+  program: string;
+  program_name: string;
+  institution_name: string;
+  name: string;
+  student_total_fee: string;
+  registration_fee: string;
+  exam_fee: string;
+  other_fee: string;
+  data_status: string;
+  verified_at: string | null;
+  verified_by: AcademicVerifiedUser | null;
+  verification_notes: string;
+  is_active: boolean;
+  notes: string;
+  installments: ProgramFeeInstallment[];
+  created_at: string;
+  updated_at: string;
+}
 
 export interface Program {
   id: string;
   institution: string;
   institution_name: string;
+
   name: string;
   code: string;
+
   level: string;
   level_display: string;
+
   duration_years: number | null;
   duration_semesters: number | null;
+
+  study_mode: string;
+  study_mode_display: string;
+
+  specialization: string;
+
+  eligibility_text: string;
+
+  minimum_qualification: string;
+  minimum_qualification_display: string;
+
+  required_stream: string;
+
+  eligibility_review_required: boolean;
   is_credit_transfer_available: boolean;
+
+  data_status: string;
+  verified_at: string | null;
+  verified_by: AcademicVerifiedUser | null;
+  verification_notes: string;
+
+  fee_plans: ProgramFeePlan[];
+
   is_active: boolean;
   notes: string;
+
   created_at: string;
   updated_at: string;
 }
+
+/* ================================================================
+   ADMISSION WORKFLOW
+   ================================================================ */
 
 export interface AdmissionDocument {
   id: string;
@@ -230,6 +314,7 @@ export type AdmissionQueue =
   | "DOCUMENT_PENDING"
   | "FEE_PENDING"
   | "ENROLLMENT_PENDING";
+
 export interface HandoffQualification {
   id: string;
   highest_qualification: string;
@@ -300,6 +385,7 @@ export interface QualifiedLeadFilters {
   source?: string;
   campaign?: string;
 }
+
 export interface ConvertLeadPayload {
   lead_id: string;
   institution_id?: string | null;
