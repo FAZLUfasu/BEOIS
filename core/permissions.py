@@ -10,27 +10,50 @@ MANAGEMENT_ROLES = {
 
 class SystemSettingsPermission(BasePermission):
     """
-    Any authenticated user may read system settings.
+    System Settings access.
 
-    Only management roles or Django superusers may modify them.
+    View:
+        SUPER_ADMIN
+        CHAIRMAN
+        GENERAL_MANAGER
+        Django superuser
+
+    Modify:
+        SUPER_ADMIN
+        Django superuser
+
+    Other authenticated users:
+        No access.
     """
 
     message = (
-        "Only authorized management users can modify system settings."
+        "You do not have permission to access system settings."
     )
 
     def has_permission(self, request, view):
         user = request.user
 
-        if not user or not user.is_authenticated:
+        if (
+            not user
+            or not user.is_authenticated
+            or not user.is_active
+        ):
             return False
 
-        if request.method in SAFE_METHODS:
-            return True
-
+        # Django superuser has unrestricted access.
         if user.is_superuser:
             return True
 
-        role = getattr(user, "role", None)
+        # System settings are restricted to management roles.
+        if not any(
+            user.has_role(role_code)
+            for role_code in MANAGEMENT_ROLES
+        ):
+            return False
 
-        return role in MANAGEMENT_ROLES
+        # SUPER_ADMIN may modify settings.
+        if request.method not in SAFE_METHODS:
+            return user.has_role("SUPER_ADMIN")
+
+        # Management users may view settings.
+        return True

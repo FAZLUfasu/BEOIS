@@ -269,7 +269,13 @@ export function Sidebar({
       "Academic Master Data",
     ]);
 
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+
+  const canAccessSettings = hasRole(
+    "SUPER_ADMIN",
+    "CHAIRMAN",
+    "GENERAL_MANAGER",
+  );
 
   const roleCodes = new Set(
     user?.roles.map(
@@ -656,32 +662,34 @@ export function Sidebar({
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          <Link
-            href="/settings"
-            onClick={onMobileClose}
-            className={cn(
-              "mb-2 flex h-11 items-center rounded-xl text-[13px] font-medium text-blue-50/70 transition hover:bg-white/8 hover:text-white",
-              collapsed
-                ? "justify-center"
-                : "gap-3 px-3",
-              pathname === "/settings"
-                ? "bg-white text-[var(--sidebar)] shadow-sm"
-                : "",
-            )}
-            title={
-              collapsed
-                ? "Settings"
-                : undefined
-            }
-          >
-            <Settings size={19} />
+          {canAccessSettings && (
+            <Link
+              href="/settings"
+              onClick={onMobileClose}
+              className={cn(
+                "mb-2 flex h-11 items-center rounded-xl text-[13px] font-medium text-blue-50/70 transition hover:bg-white/8 hover:text-white",
+                collapsed
+                  ? "justify-center"
+                  : "gap-3 px-3",
+                pathname === "/settings"
+                  ? "bg-white text-[var(--sidebar)] shadow-sm"
+                  : "",
+              )}
+              title={
+                collapsed
+                  ? "Settings"
+                  : undefined
+              }
+            >
+              <Settings size={19} />
 
-            {!collapsed && (
-              <span>
-                Settings
-              </span>
-            )}
-          </Link>
+              {!collapsed && (
+                <span>
+                  Settings
+                </span>
+              )}
+            </Link>
+          )}
 
           <button
             type="button"
