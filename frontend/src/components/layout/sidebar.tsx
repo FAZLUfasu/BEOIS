@@ -14,7 +14,6 @@ import {
   ChevronRight,
   ChevronUp,
   CircleDollarSign,
-  FileSpreadsheet,
   GraduationCap,
   LayoutDashboard,
   Megaphone,
@@ -90,6 +89,7 @@ const navigation: NavigationSection[] = [
           "DEPARTMENT_HEAD",
         ],
       },
+
       {
         name: "Leads & Telecalling",
         href: "/leads",
@@ -102,6 +102,7 @@ const navigation: NavigationSection[] = [
           "DEPARTMENT_HEAD",
         ],
       },
+
       {
         name: "Admissions",
         href: "/admissions",
@@ -114,6 +115,22 @@ const navigation: NavigationSection[] = [
         ],
       },
 
+      /*
+       * Academic Master Data
+       *
+       * This is now a single navigation item.
+       *
+       * The old nested:
+       *   - Master Data
+       *   - Academic Master Import
+       *
+       * items have been removed.
+       *
+       * The import action is now available
+       * inside the Academic Master Data page
+       * and is restricted there to real Django
+       * superusers.
+       */
       {
         name: "Academic Master Data",
         href: "/admissions/universities",
@@ -129,39 +146,8 @@ const navigation: NavigationSection[] = [
           "TELECALLER",
           "COUNSELOR",
         ],
-        children: [
-          {
-            name: "Master Data",
-            href: "/admissions/universities",
-            icon: Building2,
-            roles: [
-              "SUPER_ADMIN",
-              "FULL_ACCESS",
-              "CHAIRMAN",
-              "GENERAL_MANAGER",
-              "ADMISSION",
-              "MANAGER",
-              "DEPARTMENT_HEAD",
-              "TELECALLER",
-              "COUNSELOR",
-            ],
-          },
-          {
-            name: "Academic Master Import",
-            href: "/admissions/import",
-            icon: FileSpreadsheet,
-            roles: [
-              "SUPER_ADMIN",
-              "FULL_ACCESS",
-              "CHAIRMAN",
-              "GENERAL_MANAGER",
-              "ADMISSION",
-              "MANAGER",
-              "DEPARTMENT_HEAD",
-            ],
-          },
-        ],
       },
+
       {
         name: "Education Process",
         href: "/students",
@@ -173,6 +159,7 @@ const navigation: NavigationSection[] = [
           "DEPARTMENT_HEAD",
         ],
       },
+
       {
         name: "Partner Network",
         href: "/partners",
@@ -204,16 +191,17 @@ const navigation: NavigationSection[] = [
   },
 
   {
-  label: "Administration",
-  items: [
-    {
-      name: "Roles & Permissions",
-      href: "/settings/roles",
-      icon: ShieldCheck,
-      superuserOnly: true,
-    },
-    {
-      name: "HR & Payroll",
+    label: "Administration",
+    items: [
+      {
+        name: "Roles & Permissions",
+        href: "/settings/roles",
+        icon: ShieldCheck,
+        superuserOnly: true,
+      },
+
+      {
+        name: "HR & Payroll",
         href: "/hr",
         icon: UserRoundCog,
         roles: [
@@ -221,6 +209,7 @@ const navigation: NavigationSection[] = [
           "HR",
         ],
       },
+
       {
         name: "Finance",
         href: "/finance",
@@ -230,6 +219,7 @@ const navigation: NavigationSection[] = [
           "FINANCE",
         ],
       },
+
       {
         name: "Organization",
         href: "/organization",
@@ -239,6 +229,7 @@ const navigation: NavigationSection[] = [
           "GENERAL_MANAGER",
         ],
       },
+
       {
         name: "User Management",
         href: "/settings/users",
@@ -264,19 +255,25 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
 
-  const [expandedItems, setExpandedItems] =
-    useState<string[]>([
-      "Academic Master Data",
-    ]);
+  const { hasRole, user } = useAuth();
 
-  const { user, hasRole } = useAuth();
-
+  /*
+   * System Settings access.
+   *
+   * These roles may see the Settings entry.
+   * The backend independently enforces the
+   * actual System Settings permission.
+   */
   const canAccessSettings = hasRole(
     "SUPER_ADMIN",
     "CHAIRMAN",
     "GENERAL_MANAGER",
   );
 
+  /*
+   * Convert the user's assigned role codes
+   * into a Set for fast navigation checks.
+   */
   const roleCodes = new Set(
     user?.roles.map(
       (role) => role.code,
@@ -377,6 +374,7 @@ export function Sidebar({
             : "-translate-x-full lg:translate-x-0",
         )}
       >
+        {/* Header */}
         <div className="flex h-[78px] items-center border-b border-white/10 px-5">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--brand)] shadow-sm">
@@ -409,6 +407,7 @@ export function Sidebar({
           </button>
         </div>
 
+        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-5">
           {visibleNavigation.map(
             (section) => (
@@ -448,169 +447,31 @@ export function Sidebar({
                             ),
                         ) ?? false;
 
-                      const expanded =
-                        expandedItems.includes(
-                          item.name,
-                        );
-
                       if (
                         hasChildren
                       ) {
                         return (
-                          <div
+                          <NavigationItemWithChildren
                             key={item.name}
-                          >
-                            <div
-                              className={cn(
-                                "group flex h-11 items-center rounded-xl text-[13px] font-medium transition-all",
-                                collapsed
-                                  ? "justify-center px-0"
-                                  : "gap-2 px-3",
-                                active ||
-                                  childActive
-                                  ? "bg-white text-[var(--sidebar)] shadow-sm"
-                                  : "text-blue-50/75 hover:bg-white/8 hover:text-white",
-                              )}
-                            >
-                              <Link
-                                href={
-                                  item.href
-                                }
-                                onClick={
-                                  onMobileClose
-                                }
-                                title={
-                                  collapsed
-                                    ? item.name
-                                    : undefined
-                                }
-                                className={cn(
-                                  "flex min-w-0 flex-1 items-center",
-                                  collapsed
-                                    ? "justify-center"
-                                    : "gap-3",
-                                )}
-                              >
-                                <Icon
-                                  size={19}
-                                  strokeWidth={
-                                    active ||
-                                    childActive
-                                      ? 2.3
-                                      : 1.9
-                                  }
-                                  className="shrink-0"
-                                />
-
-                                {!collapsed && (
-                                  <span className="truncate">
-                                    {
-                                      item.name
-                                    }
-                                  </span>
-                                )}
-                              </Link>
-
-                              {!collapsed && (
-                                <button
-                                  type="button"
-                                  aria-label={
-                                    expanded
-                                      ? `Collapse ${item.name}`
-                                      : `Expand ${item.name}`
-                                  }
-                                  onClick={() =>
-                                    setExpandedItems(
-                                      (current) =>
-                                        current.includes(
-                                          item.name,
-                                        )
-                                          ? current.filter(
-                                              (
-                                                name,
-                                              ) =>
-                                                name !==
-                                                item.name,
-                                            )
-                                          : [
-                                              ...current,
-                                              item.name,
-                                            ],
-                                    )
-                                  }
-                                  className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-black/5"
-                                >
-                                  {expanded ? (
-                                    <ChevronUp
-                                      size={
-                                        16
-                                      }
-                                    />
-                                  ) : (
-                                    <ChevronDown
-                                      size={
-                                        16
-                                      }
-                                    />
-                                  )}
-                                </button>
-                              )}
-                            </div>
-
-                            {!collapsed &&
-                              expanded && (
-                                <div className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-3">
-                                  {item.children?.map(
-                                    (
-                                      child,
-                                    ) => {
-                                      const ChildIcon =
-                                        child.icon;
-
-                                      const childIsActive =
-                                        child.href ===
-                                        "/"
-                                          ? pathname ===
-                                            "/"
-                                          : pathname.startsWith(
-                                              child.href,
-                                            );
-
-                                      return (
-                                        <Link
-                                          key={
-                                            child.name
-                                          }
-                                          href={
-                                            child.href
-                                          }
-                                          onClick={
-                                            onMobileClose
-                                          }
-                                          className={cn(
-                                            "flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-all",
-                                            childIsActive
-                                              ? "bg-white/90 text-[var(--sidebar)]"
-                                              : "text-blue-50/65 hover:bg-white/8 hover:text-white",
-                                          )}
-                                        >
-                                          <ChildIcon
-                                            size={
-                                              15
-                                            }
-                                          />
-                                          <span className="truncate">
-                                            {
-                                              child.name
-                                            }
-                                          </span>
-                                        </Link>
-                                      );
-                                    },
-                                  )}
-                                </div>
-                              )}
-                          </div>
+                            item={item}
+                            active={active}
+                            childActive={
+                              childActive
+                            }
+                            collapsed={
+                              collapsed
+                            }
+                            pathname={
+                              pathname
+                            }
+                            expandedItems={
+                              []
+                            }
+                            onToggleExpand={() => {}}
+                            onMobileClose={
+                              onMobileClose
+                            }
+                          />
                         );
                       }
 
@@ -661,6 +522,7 @@ export function Sidebar({
           )}
         </nav>
 
+        {/* Footer */}
         <div className="border-t border-white/10 p-3">
           {canAccessSettings && (
             <Link
@@ -720,5 +582,157 @@ export function Sidebar({
         </div>
       </aside>
     </>
+  );
+}
+
+/*
+ * This component is retained for future nested
+ * navigation items. Academic Master Data itself
+ * is now a single sidebar item.
+ */
+interface NavigationItemWithChildrenProps {
+  item: NavigationItem;
+  active: boolean;
+  childActive: boolean;
+  collapsed: boolean;
+  pathname: string;
+  expandedItems: string[];
+  onToggleExpand: (
+    name: string,
+  ) => void;
+  onMobileClose: () => void;
+}
+
+function NavigationItemWithChildren({
+  item,
+  active,
+  childActive,
+  collapsed,
+  pathname,
+  expandedItems,
+  onToggleExpand,
+  onMobileClose,
+}: NavigationItemWithChildrenProps) {
+  const Icon = item.icon;
+
+  const expanded =
+    expandedItems.includes(
+      item.name,
+    );
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "group flex h-11 items-center rounded-xl text-[13px] font-medium transition-all",
+          collapsed
+            ? "justify-center px-0"
+            : "gap-2 px-3",
+          active || childActive
+            ? "bg-white text-[var(--sidebar)] shadow-sm"
+            : "text-blue-50/75 hover:bg-white/8 hover:text-white",
+        )}
+      >
+        <Link
+          href={item.href}
+          onClick={onMobileClose}
+          title={
+            collapsed
+              ? item.name
+              : undefined
+          }
+          className={cn(
+            "flex min-w-0 flex-1 items-center",
+            collapsed
+              ? "justify-center"
+              : "gap-3",
+          )}
+        >
+          <Icon
+            size={19}
+            strokeWidth={
+              active || childActive
+                ? 2.3
+                : 1.9
+            }
+            className="shrink-0"
+          />
+
+          {!collapsed && (
+            <span className="truncate">
+              {item.name}
+            </span>
+          )}
+        </Link>
+
+        {!collapsed && (
+          <button
+            type="button"
+            aria-label={
+              expanded
+                ? `Collapse ${item.name}`
+                : `Expand ${item.name}`
+            }
+            onClick={() =>
+              onToggleExpand(
+                item.name,
+              )
+            }
+            className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-black/5"
+          >
+            {expanded ? (
+              <ChevronUp size={16} />
+            ) : (
+              <ChevronDown size={16} />
+            )}
+          </button>
+        )}
+      </div>
+
+      {!collapsed &&
+        expanded && (
+          <div className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-3">
+            {item.children?.map(
+              (child) => {
+                const ChildIcon =
+                  child.icon;
+
+                const childIsActive =
+                  child.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(
+                        child.href,
+                      );
+
+                return (
+                  <Link
+                    key={child.name}
+                    href={
+                      child.href
+                    }
+                    onClick={
+                      onMobileClose
+                    }
+                    className={cn(
+                      "flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-all",
+                      childIsActive
+                        ? "bg-white/90 text-[var(--sidebar)]"
+                        : "text-blue-50/65 hover:bg-white/8 hover:text-white",
+                    )}
+                  >
+                    <ChildIcon
+                      size={15}
+                    />
+
+                    <span className="truncate">
+                      {child.name}
+                    </span>
+                  </Link>
+                );
+              },
+            )}
+          </div>
+        )}
+    </div>
   );
 }
