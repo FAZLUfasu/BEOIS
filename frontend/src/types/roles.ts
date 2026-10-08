@@ -1,3 +1,11 @@
+export interface AdminPermission {
+  id: number;
+  app_label: string;
+  model: string;
+  codename: string;
+  name: string;
+}
+
 export interface AdminRole {
   id: string;
   name: string;
@@ -12,6 +20,14 @@ export interface AdminRole {
 export interface CreateAdminRolePayload {
   name: string;
   code: string;
+  description?: string;
+  is_active?: boolean;
+  permissions?: number[];
+}
+
+export interface UpdateAdminRolePayload {
+  name?: string;
+  code?: string;
   description?: string;
   is_active?: boolean;
   permissions?: number[];
