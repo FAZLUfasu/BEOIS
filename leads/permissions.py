@@ -28,6 +28,34 @@ class CanAccessLeads(BasePermission):
         )
 
 
+class CanDeleteLead(BasePermission):
+    message = (
+        "You do not have permission "
+        "to delete leads."
+    )
+
+    def has_permission(self, request, view):
+        user = request.user
+
+        if (
+            not user
+            or not user.is_authenticated
+            or not user.is_active
+        ):
+            return False
+
+        if user.is_superuser:
+            return True
+
+        if not hasattr(user, "get_role_permissions"):
+            return False
+
+        return (
+            "leads.delete_lead"
+            in user.get_role_permissions()
+        )
+
+
 class CanManageLeadAssignment(BasePermission):
     message = (
         "You do not have permission "

@@ -18,18 +18,18 @@ class Institution(models.Model):
         editable=False,
     )
 
-    name = models.CharField(
+    name = models.TextField(
         max_length=255,
         unique=True,
     )
 
-    short_name = models.CharField(
+    short_name = models.TextField(
         max_length=100,
         blank=True,
     )
 
     code = models.CharField(
-        max_length=50,
+        max_length=100,
         unique=True,
     )
 
@@ -110,12 +110,10 @@ class Program(models.Model):
         related_name="programs",
     )
 
-    name = models.CharField(
-        max_length=255,
-    )
+    name = models.TextField()
 
     code = models.CharField(
-        max_length=50,
+        max_length=100,
         blank=True,
     )
 
@@ -251,7 +249,7 @@ class Program(models.Model):
 
         constraints = [
             models.UniqueConstraint(
-                fields=["institution", "name"],
+                fields=["institution", "code"],
                 name="unique_institution_program",
             ),
         ]
@@ -283,7 +281,7 @@ class ProgramFeePlan(models.Model):
         blank=True,
         db_index=True,
     )
-    name = models.CharField(
+    name = models.TextField(
         max_length=120,
         default="Standard",
     )
@@ -533,7 +531,7 @@ class Admission(models.Model):
     # APPLICANT
     # ------------------------------------------------------------
 
-    applicant_name = models.CharField(
+    applicant_name = models.TextField(
         max_length=255,
     )
 
@@ -893,7 +891,7 @@ class AdmissionDocument(models.Model):
         db_index=True,
     )
 
-    document_name = models.CharField(
+    document_name = models.TextField(
         max_length=255,
         blank=True,
     )

@@ -99,6 +99,20 @@ class LeadQualificationSerializer(serializers.ModelSerializer):
         default="",
     )
 
+    selected_program_minimum_qualification = serializers.CharField(
+        source="selected_program.minimum_qualification",
+        read_only=True,
+        allow_null=True,
+        default=None,
+    )
+
+    selected_program_eligibility_review_required = serializers.BooleanField(
+        source="selected_program.eligibility_review_required",
+        read_only=True,
+        allow_null=True,
+        default=None,
+    )
+
     highest_qualification_display = serializers.CharField(
         source="get_highest_qualification_display",
         read_only=True,
@@ -115,6 +129,10 @@ class LeadQualificationSerializer(serializers.ModelSerializer):
     )
 
     qualified_by = UserMiniSerializer(
+        read_only=True,
+    )
+
+    manual_eligibility_confirmed_by = UserMiniSerializer(
         read_only=True,
     )
 
@@ -136,6 +154,12 @@ class LeadQualificationSerializer(serializers.ModelSerializer):
             "selected_program",
             "selected_program_name",
             "selected_program_code",
+            "selected_program_minimum_qualification",
+            "selected_program_eligibility_review_required",
+            "manual_eligibility_confirmed",
+            "manual_eligibility_confirmed_by",
+            "manual_eligibility_confirmed_at",
+            "manual_eligibility_confirmation_reason",
             "customer_budget",
             "quoted_fee",
             "eligibility_status",
@@ -147,6 +171,31 @@ class LeadQualificationSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = fields
+
+
+class ConfirmLeadEligibilitySerializer(serializers.Serializer):
+    confirmed = serializers.BooleanField(required=True)
+    reason = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        trim_whitespace=True,
+        max_length=2000,
+    )
+
+    def validate_confirmed(self, value):
+        if value is not True:
+            raise serializers.ValidationError(
+                "Explicit eligibility confirmation is required."
+            )
+        return value
+
+    def validate_reason(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError(
+                "A reason is required for manual eligibility confirmation."
+            )
+        return value
 
 
 class LeadQualificationUpdateSerializer(serializers.Serializer):
@@ -502,6 +551,19 @@ class VisitBranchSerializer(serializers.ModelSerializer):
 
 
 class LeadListSerializer(serializers.ModelSerializer):
+    latest_call_outcome = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+    )
+
+    latest_call_outcome_display = serializers.SerializerMethodField()
+
+    def get_latest_call_outcome_display(self, obj):
+        outcome = getattr(obj, "latest_call_outcome", None)
+        if not outcome:
+            return None
+        return dict(CallLog.Outcome.choices).get(outcome, outcome)
+
     assigned_to = UserMiniSerializer(
         read_only=True
     )
@@ -548,6 +610,8 @@ class LeadListSerializer(serializers.ModelSerializer):
             "interested_course",
             "status",
             "status_display",
+            "latest_call_outcome",
+            "latest_call_outcome_display",
             "assigned_to",
             "next_follow_up_at",
             "created_at",

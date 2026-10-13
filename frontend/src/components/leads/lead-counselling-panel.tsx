@@ -21,6 +21,7 @@ import {
   getLeadCourseOptions,
   getVisitBranches,
   qualifyLead,
+  confirmLeadEligibility,
   saveLeadQualification,
   scheduleLeadAppointment,
   updateLeadAppointmentStatus,
@@ -248,6 +249,16 @@ export function LeadCounsellingPanel({
   const [
     qualificationSuccess,
     setQualificationSuccess,
+  ] = useState("");
+
+  const [
+    manualConfirmationChecked,
+    setManualConfirmationChecked,
+  ] = useState(false);
+
+  const [
+    manualConfirmationReason,
+    setManualConfirmationReason,
   ] = useState("");
 
   const [
@@ -591,6 +602,52 @@ export function LeadCounsellingPanel({
               "The lead could not "
               + "be marked qualified."
             ),
+      );
+    } finally {
+      setSavingQualification(false);
+    }
+  }
+
+  async function confirmManualEligibility() {
+    if (!manualConfirmationChecked) {
+      setQualificationError(
+        "Please confirm that you have verified the student's eligibility.",
+      );
+      return;
+    }
+
+    if (!manualConfirmationReason.trim()) {
+      setQualificationError(
+        "A reason is required for manual eligibility confirmation.",
+      );
+      return;
+    }
+
+    setSavingQualification(true);
+    setQualificationError("");
+    setQualificationSuccess("");
+
+    try {
+      const updated = await confirmLeadEligibility(
+        lead.id,
+        {
+          confirmed: true,
+          reason: manualConfirmationReason.trim(),
+        },
+      );
+
+      setQualification(updated.qualification ?? null);
+      setManualConfirmationChecked(false);
+      setManualConfirmationReason("");
+      setQualificationSuccess(
+        "Eligibility confirmed and lead qualified.",
+      );
+      await onLeadChanged(updated);
+    } catch (caught) {
+      setQualificationError(
+        caught instanceof Error
+          ? caught.message
+          : "Eligibility could not be confirmed.",
       );
     } finally {
       setSavingQualification(false);
@@ -1134,18 +1191,65 @@ export function LeadCounsellingPanel({
               </button>
             )}
 
-            {qualification
-              .eligibility_status
-              === "REVIEW_REQUIRED" && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
-                <AlertTriangle
-                  size={15}
-                  className="mt-0.5 shrink-0"
-                />
+            {qualification.eligibility_status === "REVIEW_REQUIRED" && (
+              <div className="mt-4 space-y-4">
+                <div className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                  Eligibility confirmation is required before this lead can be qualified.
+                </div>
 
-                Eligibility confirmation
-                is required before this
-                lead can be qualified.
+                {qualification.selected_program_minimum_qualification === "UNSPECIFIED"
+                  && qualification.selected_program_eligibility_review_required === false
+                  && lead.status !== "CONVERTED" && (
+                  <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+                    <div className="text-sm font-bold text-slate-900">
+                      Manual Eligibility Verification
+                    </div>
+
+                    <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={manualConfirmationChecked}
+                        onChange={(event) => setManualConfirmationChecked(event.target.checked)}
+                        disabled={savingQualification}
+                        className="mt-1"
+                      />
+                      <span>
+                        I confirm that I have verified this student&apos;s eligibility for the selected program.
+                      </span>
+                    </label>
+
+                    <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                      Verification reason <span className="font-normal text-slate-500">(required)</span>
+                      <textarea
+                        value={manualConfirmationReason}
+                        onChange={(event) => setManualConfirmationReason(event.target.value)}
+                        disabled={savingQualification}
+                        required
+                        maxLength={2000}
+                        rows={3}
+                        placeholder="Record what was checked and why the student is eligible."
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-normal outline-none focus:border-[var(--brand)]"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => void confirmManualEligibility()}
+                      disabled={
+                        savingQualification
+                        || !manualConfirmationChecked
+                        || !manualConfirmationReason.trim()
+                      }
+                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-60"
+                    >
+                      {savingQualification
+                        ? <LoaderCircle size={14} className="animate-spin" />
+                        : <CheckCircle2 size={15} />}
+                      Confirm Eligibility &amp; Qualify Lead
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

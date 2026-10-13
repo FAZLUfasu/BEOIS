@@ -34,6 +34,7 @@ from leads.serializers import (
 )
 from leads.services import (
     change_lead_appointment_status,
+    confirm_lead_eligibility,
     mark_lead_qualified,
     record_call,
     save_lead_qualification,
@@ -239,6 +240,207 @@ class TelecallerCounsellingServiceTests(
                 lead=self.lead,
                 performed_by=self.user,
             )
+
+    def test_manual_eligibility_confirmation_qualifies_lead(self):
+        self.program.minimum_qualification = (
+            Program.MinimumQualification.UNSPECIFIED
+        )
+        self.program.eligibility_review_required = False
+        self.program.save()
+
+        qualification = save_lead_qualification(
+            lead=self.lead,
+            performed_by=self.user,
+            highest_qualification=(
+                LeadQualification.QualificationLevel.PLUS_TWO
+            ),
+            required_level=LeadQualification.RequiredLevel.UG,
+            selected_program=self.program,
+        )
+        self.assertEqual(
+            qualification.eligibility_status,
+            LeadQualification.EligibilityStatus.REVIEW_REQUIRED,
+        )
+
+        confirm_lead_eligibility(
+            lead=self.lead,
+            performed_by=self.user,
+            reason="Verified the student's original certificates.",
+        )
+
+        self.lead.refresh_from_db()
+        qualification.refresh_from_db()
+
+        self.assertEqual(self.lead.status, Lead.Status.QUALIFIED)
+        self.assertEqual(
+            qualification.eligibility_status,
+            LeadQualification.EligibilityStatus.ELIGIBLE,
+        )
+        self.assertTrue(qualification.manual_eligibility_confirmed)
+        self.assertEqual(
+            qualification.manual_eligibility_confirmed_by,
+            self.user,
+        )
+        self.assertIsNotNone(qualification.manual_eligibility_confirmed_at)
+        self.assertEqual(
+            qualification.manual_eligibility_confirmation_reason,
+            "Verified the student's original certificates.",
+        )
+
+    def test_manual_confirmation_rejects_program_requiring_review(self):
+        self.program.minimum_qualification = (
+            Program.MinimumQualification.UNSPECIFIED
+        )
+        self.program.eligibility_review_required = True
+        self.program.save()
+
+        save_lead_qualification(
+            lead=self.lead,
+            performed_by=self.user,
+            highest_qualification=(
+                LeadQualification.QualificationLevel.PLUS_TWO
+            ),
+            required_level=LeadQualification.RequiredLevel.UG,
+            selected_program=self.program,
+        )
+
+        with self.assertRaises(ValidationError):
+            confirm_lead_eligibility(
+                lead=self.lead,
+                performed_by=self.user,
+                reason="Reviewed documents.",
+            )
+
+    def test_manual_confirmation_rejects_not_eligible_student(self):
+        self.program.minimum_qualification = (
+            Program.MinimumQualification.PG
+        )
+        self.program.eligibility_review_required = False
+        self.program.save()
+
+        qualification = save_lead_qualification(
+            lead=self.lead,
+            performed_by=self.user,
+            highest_qualification=(
+                LeadQualification.QualificationLevel.PLUS_TWO
+            ),
+            required_level=LeadQualification.RequiredLevel.UG,
+            selected_program=self.program,
+        )
+        self.assertEqual(
+            qualification.eligibility_status,
+            LeadQualification.EligibilityStatus.NOT_ELIGIBLE,
+        )
+
+        with self.assertRaises(ValidationError):
+            confirm_lead_eligibility(
+                lead=self.lead,
+                performed_by=self.user,
+                reason="Attempted confirmation.",
+            )
+
+    def test_manual_confirmation_rejects_converted_lead(self):
+        self.program.minimum_qualification = (
+            Program.MinimumQualification.UNSPECIFIED
+        )
+        self.program.save()
+
+        save_lead_qualification(
+            lead=self.lead,
+            performed_by=self.user,
+            highest_qualification=(
+                LeadQualification.QualificationLevel.PLUS_TWO
+            ),
+            required_level=LeadQualification.RequiredLevel.UG,
+            selected_program=self.program,
+        )
+
+        self.lead.status = Lead.Status.CONVERTED
+        self.lead.save(update_fields=["status", "updated_at"])
+
+        with self.assertRaises(ValidationError):
+            confirm_lead_eligibility(
+                lead=self.lead,
+                performed_by=self.user,
+                reason="Attempted confirmation after conversion.",
+            )
+
+        self.lead.refresh_from_db()
+        self.assertEqual(self.lead.status, Lead.Status.CONVERTED)
+
+    def test_eligibility_edit_invalidates_manual_confirmation(self):
+        self.program.minimum_qualification = (
+            Program.MinimumQualification.UNSPECIFIED
+        )
+        self.program.save()
+
+        save_lead_qualification(
+            lead=self.lead,
+            performed_by=self.user,
+            highest_qualification=(
+                LeadQualification.QualificationLevel.PLUS_TWO
+            ),
+            required_level=LeadQualification.RequiredLevel.UG,
+            selected_program=self.program,
+        )
+        confirm_lead_eligibility(
+            lead=self.lead,
+            performed_by=self.user,
+            reason="Verified the student's original certificates.",
+        )
+
+        updated = save_lead_qualification(
+            lead=self.lead,
+            performed_by=self.user,
+            stream="Commerce",
+        )
+
+        self.assertFalse(updated.manual_eligibility_confirmed)
+        self.assertIsNone(updated.manual_eligibility_confirmed_by)
+        self.assertIsNone(updated.manual_eligibility_confirmed_at)
+        self.assertEqual(
+            updated.manual_eligibility_confirmation_reason,
+            "",
+        )
+        self.assertEqual(
+            updated.eligibility_status,
+            LeadQualification.EligibilityStatus.REVIEW_REQUIRED,
+        )
+
+    def test_financial_edit_preserves_manual_confirmation(self):
+        self.program.minimum_qualification = (
+            Program.MinimumQualification.UNSPECIFIED
+        )
+        self.program.save()
+
+        save_lead_qualification(
+            lead=self.lead,
+            performed_by=self.user,
+            highest_qualification=(
+                LeadQualification.QualificationLevel.PLUS_TWO
+            ),
+            required_level=LeadQualification.RequiredLevel.UG,
+            selected_program=self.program,
+        )
+        confirm_lead_eligibility(
+            lead=self.lead,
+            performed_by=self.user,
+            reason="Verified the student's original certificates.",
+        )
+
+        updated = save_lead_qualification(
+            lead=self.lead,
+            performed_by=self.user,
+            customer_budget=Decimal("75000.00"),
+        )
+
+        self.assertTrue(updated.manual_eligibility_confirmed)
+        self.assertEqual(
+            updated.eligibility_status,
+            LeadQualification.EligibilityStatus.ELIGIBLE,
+        )
+        self.assertEqual(updated.qualified_by, self.user)
+        self.assertIsNotNone(updated.qualified_at)
 
     def test_telecaller_course_serializer_hides_center_fee(
         self,

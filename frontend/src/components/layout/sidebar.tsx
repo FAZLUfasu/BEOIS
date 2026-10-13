@@ -36,6 +36,7 @@ interface NavigationItem {
   href: string;
   icon: LucideIcon;
   roles?: string[];
+  permissions?: string[];
   children?: NavigationItem[];
 
   /*
@@ -70,7 +71,11 @@ const navigation: NavigationSection[] = [
         name: "Intelligence",
         href: "/intelligence",
         icon: BarChart3,
-        roles: managementRoles,
+        permissions: [
+          "leads.view_lead",
+          "admissions.view_admission",
+          "students.view_student",
+        ],
       },
     ],
   },
@@ -82,11 +87,9 @@ const navigation: NavigationSection[] = [
         name: "Marketing",
         href: "/marketing/lead-imports",
         icon: Megaphone,
-        roles: [
-          ...managementRoles,
-          "MARKETING",
-          "MANAGER",
-          "DEPARTMENT_HEAD",
+        permissions: [
+          "leads.view_lead",
+          "leads.view_leadimportbatch",
         ],
       },
 
@@ -94,25 +97,14 @@ const navigation: NavigationSection[] = [
         name: "Leads & Telecalling",
         href: "/leads",
         icon: PhoneCall,
-        roles: [
-          ...managementRoles,
-          "TELECALLER",
-          "MARKETING",
-          "MANAGER",
-          "DEPARTMENT_HEAD",
-        ],
+        permissions: ["leads.view_lead"],
       },
 
       {
         name: "Admissions",
         href: "/admissions",
         icon: GraduationCap,
-        roles: [
-          ...managementRoles,
-          "ADMISSION",
-          "MANAGER",
-          "DEPARTMENT_HEAD",
-        ],
+        permissions: ["admissions.view_admission"],
       },
 
       /*
@@ -135,16 +127,9 @@ const navigation: NavigationSection[] = [
         name: "Academic Master Data",
         href: "/admissions/universities",
         icon: Building2,
-        roles: [
-          "SUPER_ADMIN",
-          "FULL_ACCESS",
-          "CHAIRMAN",
-          "GENERAL_MANAGER",
-          "ADMISSION",
-          "MANAGER",
-          "DEPARTMENT_HEAD",
-          "TELECALLER",
-          "COUNSELOR",
+        permissions: [
+          "admissions.view_institution",
+          "admissions.view_program",
         ],
       },
 
@@ -152,24 +137,14 @@ const navigation: NavigationSection[] = [
         name: "Education Process",
         href: "/students",
         icon: BookOpenCheck,
-        roles: [
-          ...managementRoles,
-          "EDUCATION_PROCESS",
-          "MANAGER",
-          "DEPARTMENT_HEAD",
-        ],
+        permissions: ["students.view_student"],
       },
 
       {
         name: "Partner Network",
         href: "/partners",
         icon: Network,
-        roles: [
-          ...managementRoles,
-          "PARTNER_NETWORK",
-          "MANAGER",
-          "DEPARTMENT_HEAD",
-        ],
+        permissions: ["partners.view_partner"],
       },
 
       /*
@@ -204,19 +179,29 @@ const navigation: NavigationSection[] = [
         name: "HR & Payroll",
         href: "/hr",
         icon: UserRoundCog,
-        roles: [
-          ...managementRoles,
-          "HR",
+        permissions: [
+          "hr.view_employee",
+          "hr.view_attendance",
+          "hr.view_leaverequest",
+          "hr.view_employeeleavebalance",
+          "hr.view_leavetype",
+          "hr.view_payroll",
+          "hr.view_payrollperiod",
+          "hr.view_salarycomponent",
+          "hr.view_employeesalarycomponent",
+          "hr.view_employeesalarystructure",
+          "hr.view_salaryadvance",
+          "hr.view_designation",
         ],
       },
-
       {
         name: "Finance",
         href: "/finance",
         icon: CircleDollarSign,
-        roles: [
-          ...managementRoles,
-          "FINANCE",
+        permissions: [
+          "finance.view_expense",
+          "finance.view_financialaccount",
+          "finance.view_financialtransaction",
         ],
       },
 
@@ -224,9 +209,11 @@ const navigation: NavigationSection[] = [
         name: "Organization",
         href: "/organization",
         icon: Building2,
-        roles: [
-          "SUPER_ADMIN",
-          "GENERAL_MANAGER",
+        permissions: [
+          "organization.view_trust",
+          "organization.view_branch",
+          "organization.view_businessunit",
+          "organization.view_department",
         ],
       },
 
@@ -284,6 +271,25 @@ export function Sidebar({
     item: NavigationItem,
   ) {
     /*
+     * Telecaller-specific sidebar visibility.
+     * Marketing requires its dedicated permission.
+     * Intelligence is currently hidden for Telecallers.
+     */
+    if (roleCodes.has("TELECALLER")) {
+      if (item.name === "Intelligence") {
+        return false;
+      }
+
+      if (item.name === "Marketing") {
+        return Boolean(
+          user?.permissions.includes(
+            "leads.view_leadimportbatch",
+          ),
+        );
+      }
+    }
+
+    /*
      * A superuser-only item must never become
      * visible merely because somebody has the
      * SUPER_ADMIN role code.
@@ -311,16 +317,50 @@ export function Sidebar({
      * authenticated user.
      */
     if (
-      !item.roles ||
-      item.roles.length === 0
+      (!item.roles ||
+        item.roles.length === 0) &&
+      (!item.permissions ||
+        item.permissions.length === 0)
     ) {
       return true;
     }
 
-    return item.roles.some(
-      (role) =>
-        roleCodes.has(role),
-    );
+    /*
+     * Permission-controlled navigation is strictly
+     * permission-driven.
+     *
+     * A role code must never bypass a permission
+     * requirement. This prevents users such as
+     * TELECALLER, HR, MANAGER, etc. from seeing
+     * modules merely because of their role.
+     */
+    if (
+      item.permissions &&
+      item.permissions.length > 0
+    ) {
+      return item.permissions.some(
+        (permission) =>
+          user?.permissions.includes(
+            permission,
+          ),
+      );
+    }
+
+    /*
+     * Legacy role-only navigation remains supported
+     * only for items that do not declare permissions.
+     */
+    if (
+      item.roles &&
+      item.roles.length > 0
+    ) {
+      return item.roles.some(
+        (role) =>
+          roleCodes.has(role),
+      );
+    }
+
+    return true;
   }
 
   function filterNavigationItems(

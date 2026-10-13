@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 
+import { useAuth } from "@/lib/auth/auth-context";
+
 import {
   BadgeCheck,
   Banknote,
@@ -73,6 +75,14 @@ type HRView =
   | "LEAVE"
   | "PAYROLL"
   | "DESIGNATIONS";
+
+const HR_VIEW_PERMISSIONS: Record<HRView, string> = {
+  EMPLOYEES: "hr.view_employee",
+  ATTENDANCE: "hr.view_attendance",
+  LEAVE: "hr.view_leaverequest",
+  PAYROLL: "hr.view_payroll",
+  DESIGNATIONS: "hr.view_designation",
+};
 
 
 const STATUS_OPTIONS: Array<{
@@ -178,6 +188,22 @@ function statusLabel(
 
 
 export function HRWorkspace() {
+  const { hasPermission } = useAuth();
+
+  const allowedViews = useMemo(
+    () =>
+      (
+        Object.keys(
+          HR_VIEW_PERMISSIONS,
+        ) as HRView[]
+      ).filter((candidate) =>
+        hasPermission(
+          HR_VIEW_PERMISSIONS[candidate],
+        ),
+      ),
+    [hasPermission],
+  );
+
   const [
     view,
     setView,
@@ -266,6 +292,19 @@ export function HRWorkspace() {
     error,
     setError,
   ] = useState("");
+
+
+  useEffect(() => {
+    if (
+      allowedViews.length > 0 &&
+      !allowedViews.includes(view)
+    ) {
+      setView(allowedViews[0]);
+    }
+  }, [
+    allowedViews,
+    view,
+  ]);
 
 
   const loadReferenceData =
@@ -562,14 +601,16 @@ export function HRWorkspace() {
 
           {view === "EMPLOYEES" ? (
             <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={openCreate}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                <Plus className="h-4 w-4" />
-                New Employee
-              </button>
+              {hasPermission("hr.add_employee") ? (
+                <button
+                  type="button"
+                  onClick={openCreate}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Employee
+                </button>
+              ) : null}
 
               <button
                 type="button"
@@ -633,99 +674,109 @@ export function HRWorkspace() {
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <div className="flex min-w-max gap-1">
-            <button
-              type="button"
-              onClick={() =>
-                setView(
-                  "EMPLOYEES",
-                )
-              }
-              className={[
-                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
-                view ===
-                "EMPLOYEES"
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
-              ].join(" ")}
-            >
-              <Users className="h-4 w-4" />
-              Employees
-            </button>
+            {hasPermission("hr.view_employee") ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setView(
+                    "EMPLOYEES",
+                  )
+                }
+                className={[
+                  "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                  view ===
+                  "EMPLOYEES"
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                ].join(" ")}
+              >
+                <Users className="h-4 w-4" />
+                Employees
+              </button>
+            ) : null}
 
 
-            <button
-              type="button"
-              onClick={() =>
-                setView(
-                  "ATTENDANCE",
-                )
-              }
-              className={[
-                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
-                view ===
-                "ATTENDANCE"
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
-              ].join(" ")}
-            >
-              <CalendarCheck2 className="h-4 w-4" />
-              Attendance
-            </button>
+            {hasPermission("hr.view_attendance") ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setView(
+                    "ATTENDANCE",
+                  )
+                }
+                className={[
+                  "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                  view ===
+                  "ATTENDANCE"
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                ].join(" ")}
+              >
+                <CalendarCheck2 className="h-4 w-4" />
+                Attendance
+              </button>
+            ) : null}
 
 
-            <button
-              type="button"
-              onClick={() =>
-                setView(
-                  "LEAVE",
-                )
-              }
-              className={[
-                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
-                view ===
-                "LEAVE"
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
-              ].join(" ")}
-            >
-              <CalendarDays className="h-4 w-4" />
-              Leave
-            </button>
+            {hasPermission("hr.view_leaverequest") ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setView(
+                    "LEAVE",
+                  )
+                }
+                className={[
+                  "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                  view ===
+                  "LEAVE"
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                ].join(" ")}
+              >
+                <CalendarDays className="h-4 w-4" />
+                Leave
+              </button>
+            ) : null}
 
-            <button
-            type="button"
-            onClick={() =>
-                setView("PAYROLL")
-            }
-            className={[
-                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
-                view === "PAYROLL"
-                ? "bg-slate-950 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
-            ].join(" ")}
-            >
-            <Banknote className="h-4 w-4" />
-            Payroll
-            </button>
+            {hasPermission("hr.view_payroll") ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setView("PAYROLL")
+                }
+                className={[
+                  "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                  view === "PAYROLL"
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                ].join(" ")}
+              >
+                <Banknote className="h-4 w-4" />
+                Payroll
+              </button>
+            ) : null}
 
-            <button
-              type="button"
-              onClick={() =>
-                setView(
-                  "DESIGNATIONS",
-                )
-              }
-              className={[
-                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
-                view ===
-                "DESIGNATIONS"
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
-              ].join(" ")}
-            >
-              <BadgeCheck className="h-4 w-4" />
-              Designations
-            </button>
+            {hasPermission("hr.view_designation") ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setView(
+                    "DESIGNATIONS",
+                  )
+                }
+                className={[
+                  "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
+                  view ===
+                  "DESIGNATIONS"
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                ].join(" ")}
+              >
+                <BadgeCheck className="h-4 w-4" />
+                Designations
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -946,7 +997,11 @@ export function HRWorkspace() {
           )
         }
         onEdit={
-          openEdit
+          hasPermission(
+            "hr.change_employee",
+          )
+            ? openEdit
+            : undefined
         }
       />
 

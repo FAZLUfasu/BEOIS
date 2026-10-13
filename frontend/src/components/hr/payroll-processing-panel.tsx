@@ -80,20 +80,19 @@ type StatusFilter =
   | PayrollStatus;
 
 export function PayrollProcessingPanel() {
-  const { hasRole } = useAuth();
+  const { hasPermission } = useAuth();
 
-  const canApprove = hasRole(
-    "SUPER_ADMIN",
-    "CHAIRMAN",
-    "GENERAL_MANAGER",
-    "HR",
-  );
+  const canViewPayroll =
+    hasPermission("hr.view_payroll");
 
-  const canPay = hasRole(
-    "SUPER_ADMIN",
-    "CHAIRMAN",
-    "GENERAL_MANAGER",
-  );
+  const canCreatePayroll =
+    hasPermission("hr.add_payroll");
+
+  const canChangePayroll =
+    hasPermission("hr.change_payroll");
+
+  const canViewPayrollActivity =
+    hasPermission("hr.view_payrollactivity");
 
   const [payrolls, setPayrolls] =
     useState<Payroll[]>([]);
@@ -699,7 +698,7 @@ export function PayrollProcessingPanel() {
                             </button>
                           ) : null}
 
-                          {canApprove &&
+                          {canChangePayroll &&
                           payroll.status ===
                             "CALCULATED" ? (
                             <button
@@ -725,7 +724,7 @@ export function PayrollProcessingPanel() {
                             </button>
                           ) : null}
 
-                          {canPay &&
+                          {canChangePayroll &&
                           payroll.status ===
                             "APPROVED" ? (
                             <button
@@ -797,8 +796,9 @@ export function PayrollProcessingPanel() {
         approving={
           approvingId === detailTarget?.id
         }
-        canApprove={canApprove}
-        canPay={canPay}
+        canChangePayroll={canChangePayroll}
+        canViewPayroll={canViewPayroll}
+        canViewPayrollActivity={canViewPayrollActivity}
         onApprove={(payroll) =>
           void handleApprove(payroll)
         }
@@ -884,8 +884,9 @@ function PayrollDetailDrawer({
   payroll,
   calculating,
   approving,
-  canApprove,
-  canPay,
+  canChangePayroll,
+  canViewPayroll,
+  canViewPayrollActivity,
   onClose,
   onCalculate,
   onApprove,
@@ -897,8 +898,9 @@ function PayrollDetailDrawer({
   payroll: Payroll | null;
   calculating: boolean;
   approving: boolean;
-  canApprove: boolean;
-  canPay: boolean;
+  canChangePayroll: boolean;
+  canViewPayroll: boolean;
+  canViewPayrollActivity: boolean;
   onClose: () => void;
   onCalculate: (
     payroll: Payroll,
@@ -935,6 +937,7 @@ function PayrollDetailDrawer({
   }
 
   const editable =
+    canChangePayroll &&
     payroll.status === "CALCULATED";
 
   return (
@@ -979,10 +982,11 @@ function PayrollDetailDrawer({
               status={payroll.status}
             />
 
-            {payroll.status ===
+            {canChangePayroll &&
+            (payroll.status ===
               "DRAFT" ||
             payroll.status ===
-              "CALCULATED" ? (
+              "CALCULATED") ? (
               <button
                 type="button"
                 disabled={calculating}
@@ -1004,7 +1008,7 @@ function PayrollDetailDrawer({
               </button>
             ) : null}
 
-            {canApprove &&
+            {canChangePayroll &&
             payroll.status ===
               "CALCULATED" ? (
               <button
@@ -1024,7 +1028,7 @@ function PayrollDetailDrawer({
               </button>
             ) : null}
 
-            {canPay &&
+            {canChangePayroll &&
             payroll.status ===
               "APPROVED" ? (
               <button
@@ -1037,7 +1041,8 @@ function PayrollDetailDrawer({
               </button>
             ) : null}
 
-            {payroll.status ===
+            {canViewPayroll &&
+            payroll.status ===
             "PAID" ? (
               <button
                 type="button"
@@ -1248,7 +1253,7 @@ function PayrollDetailDrawer({
               </h4>
             </div>
 
-            {payroll.activities.length ===
+            {!canViewPayrollActivity ? null : payroll.activities.length ===
             0 ? (
               <p className="p-4 text-sm text-slate-500">
                 No payroll activity recorded.

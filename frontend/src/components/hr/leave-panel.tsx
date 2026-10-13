@@ -29,6 +29,10 @@ import {
 } from "@/lib/api/leave";
 
 import {
+  useAuth,
+} from "@/lib/auth/auth-context";
+
+import {
   LeaveRequestDialog,
 } from "@/components/hr/leave-request-dialog";
 
@@ -60,6 +64,16 @@ type LeaveWorkspaceView =
   | "REQUESTS"
   | "BALANCES"
   | "TYPES";
+
+
+const LEAVE_VIEW_PERMISSIONS: Record<
+  LeaveWorkspaceView,
+  string
+> = {
+  REQUESTS: "hr.view_leaverequest",
+  BALANCES: "hr.view_employeeleavebalance",
+  TYPES: "hr.view_leavetype",
+};
 
 
 type RequestView =
@@ -117,6 +131,27 @@ function statusClass(
 
 
 export function LeavePanel() {
+  const {
+    hasPermission,
+  } = useAuth();
+
+  const allowedWorkspaceViews =
+    useMemo(
+      () =>
+        (
+          Object.keys(
+            LEAVE_VIEW_PERMISSIONS,
+          ) as LeaveWorkspaceView[]
+        ).filter((candidate) =>
+          hasPermission(
+            LEAVE_VIEW_PERMISSIONS[
+              candidate
+            ],
+          ),
+        ),
+      [hasPermission],
+    );
+
   const [
     workspaceView,
     setWorkspaceView,
@@ -198,6 +233,23 @@ export function LeavePanel() {
     actionOpen,
     setActionOpen,
   ] = useState(false);
+
+
+  useEffect(() => {
+    if (
+      allowedWorkspaceViews.length > 0 &&
+      !allowedWorkspaceViews.includes(
+        workspaceView,
+      )
+    ) {
+      setWorkspaceView(
+        allowedWorkspaceViews[0],
+      );
+    }
+  }, [
+    allowedWorkspaceViews,
+    workspaceView,
+  ]);
 
 
   const loadData =
@@ -378,56 +430,68 @@ export function LeavePanel() {
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <div className="flex min-w-max gap-1">
 
-            <WorkspaceButton
-              active={
-                workspaceView ===
-                "REQUESTS"
-              }
-              onClick={() =>
-                setWorkspaceView(
-                  "REQUESTS",
-                )
-              }
-              icon={
-                CalendarDays
-              }
-            >
-              Leave Requests
-            </WorkspaceButton>
+            {hasPermission(
+              "hr.view_leaverequest",
+            ) ? (
+              <WorkspaceButton
+                active={
+                  workspaceView ===
+                  "REQUESTS"
+                }
+                onClick={() =>
+                  setWorkspaceView(
+                    "REQUESTS",
+                  )
+                }
+                icon={
+                  CalendarDays
+                }
+              >
+                Leave Requests
+              </WorkspaceButton>
+            ) : null}
 
-            <WorkspaceButton
-              active={
-                workspaceView ===
-                "BALANCES"
-              }
-              onClick={() =>
-                setWorkspaceView(
-                  "BALANCES",
-                )
-              }
-              icon={
-                Scale
-              }
-            >
-              Leave Balances
-            </WorkspaceButton>
+            {hasPermission(
+              "hr.view_employeeleavebalance",
+            ) ? (
+              <WorkspaceButton
+                active={
+                  workspaceView ===
+                  "BALANCES"
+                }
+                onClick={() =>
+                  setWorkspaceView(
+                    "BALANCES",
+                  )
+                }
+                icon={
+                  Scale
+                }
+              >
+                Leave Balances
+              </WorkspaceButton>
+            ) : null}
 
-            <WorkspaceButton
-              active={
-                workspaceView ===
-                "TYPES"
-              }
-              onClick={() =>
-                setWorkspaceView(
-                  "TYPES",
-                )
-              }
-              icon={
-                Settings2
-              }
-            >
-              Leave Types
-            </WorkspaceButton>
+            {hasPermission(
+              "hr.view_leavetype",
+            ) ? (
+              <WorkspaceButton
+                active={
+                  workspaceView ===
+                  "TYPES"
+                }
+                onClick={() =>
+                  setWorkspaceView(
+                    "TYPES",
+                  )
+                }
+                icon={
+                  Settings2
+                }
+              >
+                Leave Types
+              </WorkspaceButton>
+            ) : null}
 
           </div>
         </div>
@@ -486,19 +550,23 @@ export function LeavePanel() {
                   Refresh
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setApplyOpen(
-                      true,
-                    )
-                  }
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  <CalendarPlus2 className="h-4 w-4" />
+                {hasPermission(
+                  "hr.add_leaverequest",
+                ) ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setApplyOpen(
+                        true,
+                      )
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    <CalendarPlus2 className="h-4 w-4" />
 
-                  Apply Leave
-                </button>
+                    Apply Leave
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -805,33 +873,59 @@ export function LeavePanel() {
                             <TableCell>
                               {request.status ===
                               "PENDING" ? (
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      openAction(
-                                        request,
-                                        "APPROVE",
-                                      )
-                                    }
-                                    className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
-                                  >
-                                    Approve
-                                  </button>
+                                hasPermission(
+                                  "hr.change_leaverequest",
+                                ) ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openAction(
+                                          request,
+                                          "APPROVE",
+                                        )
+                                      }
+                                      className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                                    >
+                                      Approve
+                                    </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      openAction(
-                                        request,
-                                        "REJECT",
-                                      )
-                                    }
-                                    className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
-                                  >
-                                    Reject
-                                  </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openAction(
+                                          request,
+                                          "REJECT",
+                                        )
+                                      }
+                                      className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                                    >
+                                      Reject
+                                    </button>
 
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openAction(
+                                          request,
+                                          "CANCEL",
+                                        )
+                                      }
+                                      className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-slate-400">
+                                    View only
+                                  </span>
+                                )
+                              ) : request.status ===
+                                "APPROVED" ? (
+                                hasPermission(
+                                  "hr.change_leaverequest",
+                                ) ? (
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -844,21 +938,11 @@ export function LeavePanel() {
                                   >
                                     Cancel
                                   </button>
-                                </div>
-                              ) : request.status ===
-                                "APPROVED" ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    openAction(
-                                      request,
-                                      "CANCEL",
-                                    )
-                                  }
-                                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                                >
-                                  Cancel
-                                </button>
+                                ) : (
+                                  <span className="text-xs text-slate-400">
+                                    View only
+                                  </span>
+                                )
                               ) : (
                                 <span className="text-xs text-slate-400">
                                   Completed

@@ -105,6 +105,17 @@ export function updateAdminUserRole(
   );
 }
 
+export function deleteAdminUser(
+  userId: string,
+) {
+  return apiRequest<void>(
+    `/auth/admin/users/${userId}/`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
 export function deleteAdminUserRole(
   userId: string,
   assignmentId: string,

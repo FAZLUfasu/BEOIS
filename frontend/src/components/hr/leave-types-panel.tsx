@@ -19,6 +19,10 @@ import {
 } from "@/lib/api/leave";
 
 import {
+  useAuth,
+} from "@/lib/auth/auth-context";
+
+import {
   LeaveTypeDialog,
 } from "@/components/hr/leave-type-dialog";
 
@@ -37,6 +41,10 @@ function getErrorMessage(
 
 
 export function LeaveTypesPanel() {
+  const {
+    hasPermission,
+  } = useAuth();
+
   const [
     leaveTypes,
     setLeaveTypes,
@@ -185,17 +193,21 @@ export function LeaveTypesPanel() {
               Refresh
             </button>
 
-            <button
-              type="button"
-              onClick={
-                openCreate
-              }
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              <Plus className="h-4 w-4" />
+            {hasPermission(
+              "hr.add_leavetype",
+            ) ? (
+              <button
+                type="button"
+                onClick={
+                  openCreate
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <Plus className="h-4 w-4" />
 
-              New Leave Type
-            </button>
+                New Leave Type
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -257,17 +269,21 @@ export function LeaveTypesPanel() {
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openEdit(
-                          leaveType,
-                        )
-                      }
+                    {hasPermission(
+                      "hr.change_leavetype",
+                    ) ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openEdit(
+                            leaveType,
+                          )
+                        }
                       className="rounded-xl border border-slate-200 p-2.5 text-slate-600 transition hover:bg-slate-50"
                     >
                       <Pencil className="h-4 w-4" />
-                    </button>
+                      </button>
+                    ) : null}
                   </div>
 
 

@@ -116,18 +116,20 @@ export function SalaryAdvancesPanel() {
   );
 
 
-  const canApprove = hasRole(
-    "SUPER_ADMIN",
-    "CHAIRMAN",
-    "GENERAL_MANAGER",
-    "HR",
-  );
+  const { hasPermission } = useAuth();
 
-  const canDisburse = hasRole(
-    "SUPER_ADMIN",
-    "CHAIRMAN",
-    "GENERAL_MANAGER",
-  );
+  const canViewAdvance =
+    hasPermission("hr.view_salaryadvance");
+
+  const canCreateAdvance =
+    hasPermission("hr.add_salaryadvance");
+
+  const canChangeAdvance =
+    hasPermission("hr.change_salaryadvance");
+
+  const canApprove = canChangeAdvance;
+
+  const canDisburse = canChangeAdvance;
 
 
   const loadData =
@@ -306,16 +308,18 @@ export function SalaryAdvancesPanel() {
             Refresh
           </button>
 
-          <button
-            type="button"
-            onClick={() =>
-              setRequestOpen(true)
-            }
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            New Advance
-          </button>
+          {canCreateAdvance ? (
+            <button
+              type="button"
+              onClick={() =>
+                setRequestOpen(true)
+              }
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              New Advance
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -521,15 +525,17 @@ export function SalaryAdvancesPanel() {
 
                       <td className="whitespace-nowrap px-5 py-4">
                         <div className="flex items-center gap-2">
-                          <ActionButton
-                            onClick={() =>
-                              setDetailTarget(
-                                advance,
-                              )
-                            }
-                            icon={Eye}
-                            label="View"
-                          />
+                          {canViewAdvance ? (
+                            <ActionButton
+                              onClick={() =>
+                                setDetailTarget(
+                                  advance,
+                                )
+                              }
+                              icon={Eye}
+                              label="View"
+                            />
+                          ) : null}
 
                           {canApprove &&
                           advance.status ===

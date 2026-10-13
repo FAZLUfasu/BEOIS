@@ -758,7 +758,7 @@ function ProgramManagementModal({
       study_mode: form.study_mode.trim(),
       specialization: form.specialization.trim(),
       eligibility_text: form.eligibility_text.trim(),
-      minimum_qualification: form.minimum_qualification.trim(),
+      minimum_qualification: form.minimum_qualification.trim() || "UNSPECIFIED",
       required_stream: form.required_stream.trim(),
       notes: form.notes.trim(),
     });
@@ -805,7 +805,23 @@ function ProgramManagementModal({
               <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Specialization</span><input value={form.specialization} onChange={(e) => update("specialization", e.target.value)} className={inputClassName()} /></label>
               <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Duration — Years</span><input type="number" min="0" step="0.5" value={form.duration_years ?? ""} onChange={(e) => update("duration_years", e.target.value === "" ? null : Number(e.target.value))} className={inputClassName()} /></label>
               <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Duration — Semesters</span><input type="number" min="0" step="1" value={form.duration_semesters ?? ""} onChange={(e) => update("duration_semesters", e.target.value === "" ? null : Number(e.target.value))} className={inputClassName()} /></label>
-              <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Minimum Qualification</span><input value={form.minimum_qualification} onChange={(e) => update("minimum_qualification", e.target.value)} className={inputClassName()} /></label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700">Minimum Qualification</span>
+                <select
+                  required
+                  value={form.minimum_qualification || "UNSPECIFIED"}
+                  onChange={(e) => update("minimum_qualification", e.target.value)}
+                  className={inputClassName()}
+                >
+                  <option value="UNSPECIFIED">Unspecified</option>
+                  <option value="SSLC">SSLC / 10th</option>
+                  <option value="PLUS_TWO">Plus Two / 12th</option>
+                  <option value="DIPLOMA">Diploma</option>
+                  <option value="UG">Undergraduate Degree</option>
+                  <option value="PG">Postgraduate Degree</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
               <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">Required Stream</span><input value={form.required_stream} onChange={(e) => update("required_stream", e.target.value)} className={inputClassName()} /></label>
 
               <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">

@@ -32,6 +32,7 @@ interface AuthContextValue {
   logout: () => void;
   refreshUser: () => Promise<void>;
   hasRole: (...roles: string[]) => boolean;
+  hasPermission: (...permissions: string[]) => boolean;
 }
 
 const AuthContext =
@@ -129,6 +130,27 @@ export function AuthProvider({
       [user],
     );
 
+  const hasPermission =
+    useCallback(
+      (...permissions: string[]) => {
+        if (!user) {
+          return false;
+        }
+
+        if (user.is_superuser) {
+          return true;
+        }
+
+        return permissions.some(
+          (permission) =>
+            user.permissions.includes(
+              permission,
+            ),
+        );
+      },
+      [user],
+    );
+
   const value = useMemo(
     () => ({
       user,
@@ -138,6 +160,7 @@ export function AuthProvider({
       logout: handleLogout,
       refreshUser,
       hasRole,
+      hasPermission,
     }),
     [
       user,
@@ -146,6 +169,7 @@ export function AuthProvider({
       handleLogout,
       refreshUser,
       hasRole,
+      hasPermission,
     ],
   );
 

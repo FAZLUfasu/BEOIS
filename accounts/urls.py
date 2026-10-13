@@ -8,6 +8,8 @@ from .views import (
     CurrentUserProfilePictureView,
     SuperAdminProfilePictureView,
     SuperAdminRoleListView,
+    SuperAdminRoleDetailView,
+    SuperAdminPermissionListView,
     SuperAdminUserDetailView,
     SuperAdminUserListCreateView,
     SuperAdminUserRoleDetailView,
@@ -78,5 +80,15 @@ urlpatterns = [
         "admin/roles/",
         SuperAdminRoleListView.as_view(),
         name="super-admin-role-list",
+    ),
+    path(
+        "admin/roles/<uuid:pk>/",
+        SuperAdminRoleDetailView.as_view(),
+        name="super-admin-role-detail",
+    ),
+       path(
+        "admin/permissions/",
+        SuperAdminPermissionListView.as_view(),
+        name="super-admin-permission-list",
     ),
 ]

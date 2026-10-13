@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/lib/auth/auth-context";
+
 import {
   useCallback,
   useEffect,
@@ -46,6 +48,17 @@ type StatusFilter =
 
 
 export function PayrollPeriodsPanel() {
+  const { hasPermission } = useAuth();
+
+  const canViewPeriod =
+    hasPermission("hr.view_payrollperiod");
+
+  const canCreatePeriod =
+    hasPermission("hr.add_payrollperiod");
+
+  const canChangePeriod =
+    hasPermission("hr.change_payrollperiod");
+
   const [
     periods,
     setPeriods,
@@ -254,16 +267,18 @@ export function PayrollPeriodsPanel() {
             Refresh
           </button>
 
-          <button
-            type="button"
-            onClick={() =>
-              setCreateOpen(true)
-            }
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Create Period
-          </button>
+          {canCreatePeriod ? (
+            <button
+              type="button"
+              onClick={() =>
+                setCreateOpen(true)
+              }
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              Create Period
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -436,17 +451,20 @@ export function PayrollPeriodsPanel() {
 
                       <td className="whitespace-nowrap px-5 py-4">
                         <div className="flex gap-2">
-                          <ActionButton
-                            icon={Eye}
-                            label="Summary"
-                            onClick={() =>
-                              setDetailTarget(
-                                period,
-                              )
-                            }
-                          />
+                          {canViewPeriod ? (
+                            <ActionButton
+                              icon={Eye}
+                              label="Summary"
+                              onClick={() =>
+                                setDetailTarget(
+                                  period,
+                                )
+                              }
+                            />
+                          ) : null}
 
-                          {period.status !==
+                          {canChangePeriod &&
+                          period.status !==
                           "CLOSED" ? (
                             <ActionButton
                               icon={

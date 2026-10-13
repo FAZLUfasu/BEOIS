@@ -4,6 +4,8 @@ import {
   Camera,
   CheckCircle2,
   ChevronRight,
+  Eye,
+  EyeOff,
   KeyRound,
   Loader2,
   Pencil,
@@ -38,6 +40,7 @@ import {
   getAdminRoles,
   getAdminUserRoles,
   getAdminUsers,
+  deleteAdminUser,
   removeAdminProfilePicture,
   resetAdminUserPassword,
   updateAdminUser,
@@ -297,6 +300,17 @@ export function UserManagementWorkspace() {
     useState<UserForm>(EMPTY_USER_FORM);
   const [passwordForm, setPasswordForm] =
     useState<PasswordForm>(EMPTY_PASSWORD_FORM);
+
+  const [showNewPassword, setShowNewPassword] =
+    useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
+
+  const [showUserPassword, setShowUserPassword] =
+    useState(false);
+
+  const [showUserConfirmPassword, setShowUserConfirmPassword] =
+    useState(false);
   const [roleForm, setRoleForm] =
     useState<RoleForm>(EMPTY_ROLE_FORM);
 
@@ -557,6 +571,43 @@ export function UserManagementWorkspace() {
     }
   }
 
+
+  async function handleDeleteUser(user: AdminUser) {
+    const displayName = user.full_name || user.username;
+
+    const confirmed = window.confirm(
+      `Delete ${displayName} permanently?\n\nThis will remove the user account and its role assignments. This action cannot be undone.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await deleteAdminUser(user.id);
+
+      if (selectedUser?.id === user.id) {
+        setSelectedUser(null);
+        setUserModal(null);
+        setPasswordModal(false);
+        setRoleModal(false);
+      }
+
+      setSuccess(
+        `User ${displayName} deleted successfully.`,
+      );
+
+      await loadData();
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleToggleStatus(
     user: AdminUser,
@@ -1346,6 +1397,18 @@ async function handleRemoveProfilePicture(
                           ? "Deactivate"
                           : "Activate"}
                       </button>
+
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() =>
+                          void handleDeleteUser(user)
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1523,61 +1586,101 @@ async function handleRemoveProfilePicture(
             "CREATE" ? (
               <div className="grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
                 <Field label="Password">
-                  <input
-                    required
-                    type="password"
-                    autoComplete="new-password"
-                    value={
-                      userForm.password
-                    }
-                    onChange={(
-                      event,
-                    ) =>
-                      setUserForm(
-                        (
-                          current,
-                        ) => ({
+                  <div className="relative">
+                    <input
+                      required
+                      type={
+                        showUserPassword
+                          ? "text"
+                          : "password"
+                      }
+                      autoComplete="new-password"
+                      value={userForm.password}
+                      onChange={(event) =>
+                        setUserForm((current) => ({
                           ...current,
                           password:
-                            event
-                              .target
-                              .value,
-                        }),
-                      )
-                    }
-                    className={
-                      inputClass
-                    }
-                  />
+                            event.target.value,
+                        }))
+                      }
+                      className={`${inputClass} pr-11`}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowUserPassword(
+                          (current) => !current,
+                        )
+                      }
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 transition hover:text-slate-700"
+                      aria-label={
+                        showUserPassword
+                          ? "Hide password"
+                          : "Show password"
+                      }
+                      title={
+                        showUserPassword
+                          ? "Hide password"
+                          : "Show password"
+                      }
+                    >
+                      {showUserPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </Field>
 
                 <Field label="Confirm Password">
-                  <input
-                    required
-                    type="password"
-                    autoComplete="new-password"
-                    value={
-                      userForm.confirm_password
-                    }
-                    onChange={(
-                      event,
-                    ) =>
-                      setUserForm(
-                        (
-                          current,
-                        ) => ({
+                  <div className="relative">
+                    <input
+                      required
+                      type={
+                        showUserConfirmPassword
+                          ? "text"
+                          : "password"
+                      }
+                      autoComplete="new-password"
+                      value={userForm.confirm_password}
+                      onChange={(event) =>
+                        setUserForm((current) => ({
                           ...current,
                           confirm_password:
-                            event
-                              .target
-                              .value,
-                        }),
-                      )
-                    }
-                    className={
-                      inputClass
-                    }
-                  />
+                            event.target.value,
+                        }))
+                      }
+                      className={`${inputClass} pr-11`}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowUserConfirmPassword(
+                          (current) => !current,
+                        )
+                      }
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 transition hover:text-slate-700"
+                      aria-label={
+                        showUserConfirmPassword
+                          ? "Hide confirm password"
+                          : "Show confirm password"
+                      }
+                      title={
+                        showUserConfirmPassword
+                          ? "Hide confirm password"
+                          : "Show confirm password"
+                      }
+                    >
+                      {showUserConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </Field>
               </div>
             ) : null}
@@ -1655,51 +1758,57 @@ async function handleRemoveProfilePicture(
             </div>
 
             <Field label="New Password">
-              <input
-                required
-                type="password"
-                autoComplete="new-password"
-                value={
-                  passwordForm.new_password
-                }
-                onChange={(event) =>
-                  setPasswordForm(
-                    (current) => ({
+              <div className="relative">
+                <input
+                  required
+                  type={showNewPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={passwordForm.new_password}
+                  onChange={(event) =>
+                    setPasswordForm((current) => ({
                       ...current,
-                      new_password:
-                        event.target
-                          .value,
-                    }),
-                  )
-                }
-                className={
-                  inputClass
-                }
-              />
+                      new_password: event.target.value,
+                    }))
+                  }
+                  className={`${inputClass} pr-12`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((visible) => !visible)}
+                  aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                  title={showNewPassword ? "Hide password" : "Show password"}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-800"
+                >
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </Field>
 
             <Field label="Confirm New Password">
-              <input
-                required
-                type="password"
-                autoComplete="new-password"
-                value={
-                  passwordForm.confirm_password
-                }
-                onChange={(event) =>
-                  setPasswordForm(
-                    (current) => ({
+              <div className="relative">
+                <input
+                  required
+                  type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={passwordForm.confirm_password}
+                  onChange={(event) =>
+                    setPasswordForm((current) => ({
                       ...current,
-                      confirm_password:
-                        event.target
-                          .value,
-                    }),
-                  )
-                }
-                className={
-                  inputClass
-                }
-              />
+                      confirm_password: event.target.value,
+                    }))
+                  }
+                  className={`${inputClass} pr-12`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                  aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
+                  title={showConfirmPassword ? "Hide password" : "Show password"}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-800"
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </Field>
 
             <div className="flex justify-end gap-2 pt-3">

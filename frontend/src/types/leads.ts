@@ -99,6 +99,12 @@ export interface LeadQualification {
   selected_program: string | null;
   selected_program_name: string | null;
   selected_program_code: string;
+  selected_program_minimum_qualification: string | null;
+  selected_program_eligibility_review_required: boolean | null;
+  manual_eligibility_confirmed: boolean;
+  manual_eligibility_confirmed_by: UserMini | null;
+  manual_eligibility_confirmed_at: string | null;
+  manual_eligibility_confirmation_reason: string;
   customer_budget: string | null;
   quoted_fee: string | null;
   eligibility_status: EligibilityStatus;
@@ -274,6 +280,9 @@ export interface LeadListItem {
 
   status: LeadStatus;
   status_display: string;
+
+  latest_call_outcome: string | null;
+  latest_call_outcome_display: string | null;
 
   assigned_to: UserMini | null;
   next_follow_up_at: string | null;

@@ -331,9 +331,39 @@ class AdminRoleCreateSerializer(
             )
 
         return attrs
-class AdminRoleReferenceSerializer(
+class AdminPermissionSerializer(
     serializers.ModelSerializer
 ):
+    app_label = serializers.CharField(
+        source="content_type.app_label",
+        read_only=True,
+    )
+    model = serializers.CharField(
+        source="content_type.model",
+        read_only=True,
+    )
+
+    class Meta:
+        model = Permission
+        fields = [
+            "id",
+            "app_label",
+            "model",
+            "codename",
+            "name",
+        ]
+        read_only_fields = fields
+
+
+class AdminRoleDetailSerializer(
+    serializers.ModelSerializer
+):
+    permissions = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Permission.objects.all(),
+        required=False,
+    )
+
     class Meta:
         model = Role
         fields = [
@@ -342,6 +372,90 @@ class AdminRoleReferenceSerializer(
             "code",
             "description",
             "is_active",
+            "permissions",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+        ]
+
+    def validate_name(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Role name is required."
+            )
+
+        return value
+
+    def validate_code(self, value):
+        value = value.strip().upper()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Role code is required."
+            )
+
+        if not value.replace("_", "").isalnum():
+            raise serializers.ValidationError(
+                "Role code may contain only letters, numbers and underscores."
+            )
+
+        return value
+
+    def validate(self, attrs):
+        name = attrs.get("name")
+        code = attrs.get("code")
+
+        queryset = Role.objects.all()
+
+        if self.instance:
+            queryset = queryset.exclude(
+                pk=self.instance.pk
+            )
+
+        if name and queryset.filter(
+            name__iexact=name
+        ).exists():
+            raise serializers.ValidationError(
+                {
+                    "name": "A role with this name already exists."
+                }
+            )
+
+        if code and queryset.filter(
+            code__iexact=code
+        ).exists():
+            raise serializers.ValidationError(
+                {
+                    "code": "A role with this code already exists."
+                }
+            )
+
+        return attrs
+
+
+class AdminRoleReferenceSerializer(
+    serializers.ModelSerializer
+):
+    permissions = serializers.PrimaryKeyRelatedField(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = Role
+        fields = [
+            "id",
+            "name",
+            "code",
+            "description",
+            "is_active",
+            "permissions",
         ]
         read_only_fields = fields
 

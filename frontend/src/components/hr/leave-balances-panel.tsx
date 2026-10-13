@@ -25,6 +25,10 @@ import {
 } from "@/lib/api/leave";
 
 import {
+  useAuth,
+} from "@/lib/auth/auth-context";
+
+import {
   LeaveBalanceDialog,
   type LeaveBalanceAction,
 } from "@/components/hr/leave-balance-dialog";
@@ -49,6 +53,10 @@ function getErrorMessage(
 
 
 export function LeaveBalancesPanel() {
+  const {
+    hasPermission,
+  } = useAuth();
+
   const [
     balances,
     setBalances,
@@ -314,17 +322,21 @@ export function LeaveBalancesPanel() {
               Refresh
             </button>
 
-            <button
-              type="button"
-              onClick={
-                openInitialize
-              }
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              <Plus className="h-4 w-4" />
+            {hasPermission(
+              "hr.add_employeeleavebalance",
+            ) ? (
+              <button
+                type="button"
+                onClick={
+                  openInitialize
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <Plus className="h-4 w-4" />
 
-              Initialize Balance
-            </button>
+                Initialize Balance
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -564,19 +576,23 @@ export function LeaveBalancesPanel() {
                         </Cell>
 
                         <Cell>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openAdjustment(
-                                balance,
-                              )
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                          >
-                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                          {hasPermission(
+                            "hr.change_employeeleavebalance",
+                          ) ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openAdjustment(
+                                  balance,
+                                )
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <SlidersHorizontal className="h-3.5 w-3.5" />
 
-                            Adjust
-                          </button>
+                              Adjust
+                            </button>
+                          ) : null}
                         </Cell>
                       </tr>
                     ),

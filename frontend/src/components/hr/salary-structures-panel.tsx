@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/lib/auth/auth-context";
+
 import {
   useCallback,
   useEffect,
@@ -60,6 +62,20 @@ function money(value: string) {
 
 
 export function SalaryStructuresPanel() {
+  const { hasPermission } = useAuth();
+
+  const canViewStructure =
+    hasPermission("hr.view_employeesalarystructure");
+
+  const canCreateStructure =
+    hasPermission("hr.add_employeesalarystructure");
+
+  const canChangeStructure =
+    hasPermission("hr.change_employeesalarystructure");
+
+  const canAddStructureComponent =
+    hasPermission("hr.add_employeesalarycomponent");
+
   const [
     structures,
     setStructures,
@@ -200,16 +216,18 @@ export function SalaryStructuresPanel() {
               Refresh
             </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                setCreateOpen(true)
-              }
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
-            >
-              <Plus className="h-4 w-4" />
-              New Structure
-            </button>
+            {canCreateStructure ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setCreateOpen(true)
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                <Plus className="h-4 w-4" />
+                New Structure
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -332,18 +350,20 @@ export function SalaryStructuresPanel() {
                         </td>
 
                         <td className="px-5 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelected(
-                                structure,
-                              )
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            View
-                          </button>
+                          {canViewStructure ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelected(
+                                  structure,
+                                )
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </button>
+                          ) : null}
                         </td>
                       </tr>
                     ),
@@ -419,18 +439,20 @@ export function SalaryStructuresPanel() {
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAddComponentOpen(
-                        true,
-                      )
-                    }
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2.5 text-sm font-semibold text-white"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Component
-                  </button>
+                  {canAddStructureComponent ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAddComponentOpen(
+                          true,
+                        )
+                      }
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2.5 text-sm font-semibold text-white"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Component
+                    </button>
+                  ) : null}
                 </div>
 
                 {selected.components

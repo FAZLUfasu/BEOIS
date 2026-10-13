@@ -25,7 +25,7 @@ interface EmployeeDetailDrawerProps {
 
   onClose: () => void;
 
-  onEdit: (
+  onEdit?: (
     employee: EmployeeListItem,
   ) => void;
 }
@@ -138,15 +138,17 @@ export function EmployeeDetailDrawer({
             </div>
 
                     <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() =>
-                            onEdit(employee)
-                            }
-                            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                            Edit Employee
-                        </button>
+                        {onEdit ? (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    onEdit(employee)
+                                }
+                                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                                Edit Employee
+                            </button>
+                        ) : null}
 
                         <button
                             type="button"

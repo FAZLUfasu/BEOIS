@@ -389,46 +389,72 @@ def save_lead_qualification(
     performed_by=None,
     **validated_data,
 ):
-    qualification, _ = (
+    qualification, created = (
         LeadQualification.objects
         .select_for_update()
-        .get_or_create(
-            lead=lead,
-        )
+        .get_or_create(lead=lead)
+    )
+
+    old_selected_program_id = qualification.selected_program_id
+    old_highest_qualification = qualification.highest_qualification
+    old_stream = qualification.stream
+    old_required_level = qualification.required_level
+    was_manually_confirmed = (
+        qualification.manual_eligibility_confirmed
     )
 
     selected_program_supplied = (
-        "selected_program"
-        in validated_data
+        "selected_program" in validated_data
     )
-
     selected_program = validated_data.pop(
         "selected_program",
         None,
     )
 
     for field, value in validated_data.items():
-        setattr(
-            qualification,
-            field,
-            value,
-        )
+        setattr(qualification, field, value)
 
     if selected_program_supplied:
-        qualification.selected_program = (
-            selected_program
-        )
-
+        qualification.selected_program = selected_program
         qualification.selected_institution = (
             selected_program.institution
             if selected_program
             else None
         )
 
-    qualification.qualified_by = None
-    qualification.qualified_at = None
+    relevant_details_changed = (
+        old_selected_program_id != qualification.selected_program_id
+        or old_highest_qualification != qualification.highest_qualification
+        or old_stream != qualification.stream
+        or old_required_level != qualification.required_level
+    )
 
-    if qualification.selected_program_id:
+    if was_manually_confirmed and relevant_details_changed:
+        qualification.manual_eligibility_confirmed = False
+        qualification.manual_eligibility_confirmed_by = None
+        qualification.manual_eligibility_confirmed_at = None
+        qualification.manual_eligibility_confirmation_reason = ""
+
+    if not qualification.manual_eligibility_confirmed:
+        qualification.qualified_by = None
+        qualification.qualified_at = None
+
+    if (
+        qualification.manual_eligibility_confirmed
+        and not relevant_details_changed
+        and qualification.selected_program_id
+    ):
+        # Financial and other non-eligibility edits must not erase a
+        # still-valid manual decision.
+        qualification.eligibility_status = (
+            LeadQualification.EligibilityStatus.ELIGIBLE
+        )
+        qualification.eligibility_notes = (
+            "Eligibility manually confirmed. "
+            "Confirmation remains valid because eligibility-relevant "
+            "details have not changed."
+        )
+    elif qualification.selected_program_id:
         (
             qualification.eligibility_status,
             qualification.eligibility_notes,
@@ -438,9 +464,7 @@ def save_lead_qualification(
         )
     else:
         qualification.eligibility_status = (
-            LeadQualification
-            .EligibilityStatus
-            .PENDING
+            LeadQualification.EligibilityStatus.PENDING
         )
         qualification.eligibility_notes = (
             "Select a program to evaluate eligibility."
@@ -451,20 +475,160 @@ def save_lead_qualification(
 
     LeadActivity.objects.create(
         lead=lead,
-        activity_type=(
-            LeadActivity
-            .ActivityType
-            .QUALIFICATION
-        ),
+        activity_type=LeadActivity.ActivityType.QUALIFICATION,
         description=(
             "Qualification/counselling details updated. "
             f"Eligibility: "
             f"{qualification.get_eligibility_status_display()}."
+            + (
+                " Previous manual confirmation was invalidated because "
+                "eligibility-relevant details changed."
+                if was_manually_confirmed and relevant_details_changed
+                else ""
+            )
         ),
         performed_by=performed_by,
     )
 
     return qualification
+
+
+@transaction.atomic
+def confirm_lead_eligibility(
+    lead,
+    performed_by,
+    reason,
+):
+    # Lock the lead first, then its qualification to serialize concurrent
+    # edits/confirmations and prevent confirming a converted lead.
+    locked_lead = (
+        Lead.objects
+        .select_for_update()
+        .get(pk=lead.pk)
+    )
+
+    if locked_lead.status == Lead.Status.CONVERTED:
+        raise ValidationError(
+            "Eligibility cannot be confirmed for a converted lead."
+        )
+
+    try:
+        qualification = (
+            LeadQualification.objects
+            .select_for_update()
+            .select_related("selected_program")
+            .get(lead=locked_lead)
+        )
+    except LeadQualification.DoesNotExist:
+        raise ValidationError(
+            "Save qualification details and select a program first."
+        )
+
+    program = qualification.selected_program
+    if not program:
+        raise ValidationError(
+            "Select a program before confirming eligibility."
+        )
+
+    if not program.is_active:
+        raise ValidationError(
+            "The selected program is inactive."
+        )
+
+    if program.minimum_qualification != "UNSPECIFIED":
+        raise ValidationError(
+            "Manual confirmation is only available when the selected "
+            "program's minimum qualification is UNSPECIFIED."
+        )
+
+    if program.eligibility_review_required:
+        raise ValidationError(
+            "This program has additional eligibility review requirements "
+            "and cannot use this manual-confirmation flow."
+        )
+
+    if qualification.eligibility_status != (
+        LeadQualification.EligibilityStatus.REVIEW_REQUIRED
+    ):
+        raise ValidationError(
+            "Manual confirmation is only available for REVIEW_REQUIRED "
+            "eligibility."
+        )
+
+    if qualification.highest_qualification in {
+        LeadQualification.QualificationLevel.UNSPECIFIED,
+        LeadQualification.QualificationLevel.OTHER,
+    }:
+        raise ValidationError(
+            "The student's qualification details are too ambiguous "
+            "to confirm eligibility through this flow."
+        )
+
+    required_stream = (program.required_stream or "").strip()
+    if required_stream:
+        student_stream = _normalize_stream(qualification.stream)
+        accepted_streams = {
+            _normalize_stream(item)
+            for item in required_stream.replace("|", ",").split(",")
+            if item.strip()
+        }
+        if (
+            not student_stream
+            or (
+                accepted_streams
+                and student_stream not in accepted_streams
+            )
+        ):
+            raise ValidationError(
+                "The student's stream does not satisfy the program's "
+                "structured stream requirement."
+            )
+
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValidationError(
+            "A reason is required for manual eligibility confirmation."
+        )
+
+    now = timezone.now()
+    qualification.manual_eligibility_confirmed = True
+    qualification.manual_eligibility_confirmed_by = performed_by
+    qualification.manual_eligibility_confirmed_at = now
+    qualification.manual_eligibility_confirmation_reason = reason
+    qualification.eligibility_status = (
+        LeadQualification.EligibilityStatus.ELIGIBLE
+    )
+    qualification.eligibility_notes = (
+        "Eligibility manually confirmed by an authorised staff member. "
+        f"Reason: {reason}"
+    )
+    qualification.qualified_by = performed_by
+    qualification.qualified_at = now
+    qualification.full_clean()
+    qualification.save()
+
+    LeadActivity.objects.create(
+        lead=locked_lead,
+        activity_type=LeadActivity.ActivityType.QUALIFICATION,
+        description=(
+            "Manual eligibility confirmation recorded for "
+            f"{program.name}. Confirmed by {performed_by}. "
+            f"Reason: {reason}"
+        ),
+        performed_by=performed_by,
+    )
+
+    change_lead_status(
+        lead=locked_lead,
+        status=Lead.Status.QUALIFIED,
+        performed_by=performed_by,
+        notes=(
+            f"Eligibility manually confirmed for {program.name}. "
+            f"Reason: {reason}"
+        ),
+    )
+
+    return locked_lead
 
 
 @transaction.atomic

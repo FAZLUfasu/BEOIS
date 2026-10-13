@@ -10,6 +10,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   UserRoundCheck,
   UsersRound,
   X,
@@ -26,12 +27,15 @@ import {
 import {
   addLeadNote,
   changeLeadStatus,
+  deleteLead,
   getFollowUps,
   getLead,
   getLeads,
   getOverdueLeads,
   recordLeadCall,
 } from "@/lib/api/leads";
+
+import { useAuth } from "@/lib/auth/auth-context";
 
 import {
   LeadAssignmentModal,
@@ -178,6 +182,20 @@ function MetricCard({
 ============================================================ */
 
 export function LeadsWorkspace() {
+  const { hasPermission, hasRole, user } = useAuth();
+
+  const isSuperUser =
+    user?.is_superuser === true ||
+    hasRole("SUPER_ADMINISTRATOR");
+
+  const isTelecaller =
+    hasRole("TELECALLER") && !isSuperUser;
+
+  const canDeleteLead =
+    isSuperUser ||
+    (!isTelecaller &&
+      hasPermission("leads.delete_lead"));
+
   const [
     workspaceMode,
     setWorkspaceMode,
@@ -196,6 +214,11 @@ export function LeadsWorkspace() {
 
   const [selected, setSelected] =
     useState<LeadDetail | null>(null);
+
+  const [
+    selectedLeadIds,
+    setSelectedLeadIds,
+  ] = useState<string[]>([]);
 
   const [search, setSearch] =
     useState("");
@@ -359,6 +382,55 @@ export function LeadsWorkspace() {
       leads,
     ]);
 
+  const displayedLeadIds =
+    useMemo(
+      () =>
+        displayedLeads.map(
+          (lead) => lead.id,
+        ),
+      [displayedLeads],
+    );
+
+  const allDisplayedSelected =
+    displayedLeadIds.length > 0 &&
+    displayedLeadIds.every(
+      (id) =>
+        selectedLeadIds.includes(id),
+    );
+
+  const toggleLeadSelection = (
+    id: string,
+  ) => {
+    setSelectedLeadIds((current) =>
+      current.includes(id)
+        ? current.filter(
+            (selectedId) =>
+              selectedId !== id,
+          )
+        : [...current, id],
+    );
+  };
+
+  const toggleAllDisplayedLeads = () => {
+    if (allDisplayedSelected) {
+      setSelectedLeadIds((current) =>
+        current.filter(
+          (id) =>
+            !displayedLeadIds.includes(id),
+        ),
+      );
+      return;
+    }
+
+    setSelectedLeadIds((current) => [
+      ...current,
+      ...displayedLeadIds.filter(
+        (id) =>
+          !current.includes(id),
+      ),
+    ]);
+  };
+
   const converted = useMemo(
     () =>
       leads.filter(
@@ -368,6 +440,85 @@ export function LeadsWorkspace() {
       ).length,
     [leads],
   );
+
+  async function handleDeleteSelectedLeads() {
+    if (
+      !canDeleteLead ||
+      selectedLeadIds.length === 0 ||
+      saving
+    ) {
+      return;
+    }
+
+    const count =
+      selectedLeadIds.length;
+
+    const confirmed =
+      window.confirm(
+        `Delete ${count} selected lead${count === 1 ? "" : "s"}? This action cannot be undone.`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const results =
+        await Promise.allSettled(
+          selectedLeadIds.map(
+            (id) => deleteLead(id),
+          ),
+        );
+
+      const deletedIds =
+        selectedLeadIds.filter(
+          (_, index) =>
+            results[index].status ===
+            "fulfilled",
+        );
+
+      const failedCount =
+        results.length -
+        deletedIds.length;
+
+      if (
+        selected &&
+        deletedIds.includes(
+          selected.id,
+        )
+      ) {
+        setSelected(null);
+      }
+
+      setSelectedLeadIds([]);
+
+      await loadWorkspace();
+
+      if (failedCount > 0) {
+        setError(
+          `${deletedIds.length} lead${deletedIds.length === 1 ? "" : "s"} deleted, ${failedCount} failed.`,
+        );
+      } else {
+        setSuccess(
+          `${deletedIds.length} lead${deletedIds.length === 1 ? "" : "s"} deleted successfully.`,
+        );
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to delete selected leads.",
+      );
+
+      await loadWorkspace();
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function openLead(
     id: string,
@@ -693,6 +844,23 @@ export function LeadsWorkspace() {
                 Refresh
               </button>
 
+              {canDeleteLead &&
+                selectedLeadIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleDeleteSelectedLeads()
+                    }
+                    disabled={saving}
+                    className="flex h-10 items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-xs font-bold text-red-600 shadow-sm transition hover:bg-red-100 disabled:opacity-60"
+                  >
+                    <Trash2 size={15} />
+
+                    Delete Selected (
+                    {selectedLeadIds.length})
+                  </button>
+                )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -740,30 +908,32 @@ export function LeadsWorkspace() {
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={
-                showDistribution
-              }
-              className={`relative shrink-0 px-5 py-3 text-xs font-bold transition ${
-                workspaceMode ===
-                "DISTRIBUTION"
-                  ? "text-[var(--brand)]"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <UsersRound
-                  size={15}
-                />
-                Lead Distribution
-              </span>
+            {!isTelecaller && (
+              <button
+                type="button"
+                onClick={
+                  showDistribution
+                }
+                className={`relative shrink-0 px-5 py-3 text-xs font-bold transition ${
+                  workspaceMode ===
+                  "DISTRIBUTION"
+                    ? "text-[var(--brand)]"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <UsersRound
+                    size={15}
+                  />
+                  Lead Distribution
+                </span>
 
-              {workspaceMode ===
-                "DISTRIBUTION" && (
-                <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-[var(--brand)]" />
-              )}
-            </button>
+                {workspaceMode ===
+                  "DISTRIBUTION" && (
+                  <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-[var(--brand)]" />
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1068,9 +1238,30 @@ export function LeadsWorkspace() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1000px] text-left">
+                <table className="w-full min-w-[1120px] text-left">
                   <thead className="bg-slate-50">
                     <tr className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      {!isTelecaller && (
+                        <th className="w-12 px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={
+                              allDisplayedSelected
+                            }
+                            onChange={
+                              toggleAllDisplayedLeads
+                            }
+                            disabled={
+                              displayedLeads.length ===
+                              0 ||
+                              saving
+                            }
+                            aria-label="Select all displayed leads"
+                            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[var(--brand)] focus:ring-[var(--brand)]"
+                          />
+                        </th>
+                      )}
+
                       <th className="px-5 py-3">
                         Lead
                       </th>
@@ -1091,6 +1282,10 @@ export function LeadsWorkspace() {
                         Status
                       </th>
 
+                      <th className="px-4 py-3 whitespace-nowrap">
+                        Latest Call Outcome
+                      </th>
+
                       <th className="px-4 py-3">
                         Assigned
                       </th>
@@ -1108,7 +1303,7 @@ export function LeadsWorkspace() {
                       <tr>
                         <td
                           colSpan={
-                            8
+                            isTelecaller ? 9 : 10
                           }
                           className="py-14 text-center"
                         >
@@ -1125,7 +1320,7 @@ export function LeadsWorkspace() {
                       <tr>
                         <td
                           colSpan={
-                            8
+                            isTelecaller ? 9 : 10
                           }
                           className="px-5 py-14 text-center text-sm text-slate-400"
                         >
@@ -1150,6 +1345,30 @@ export function LeadsWorkspace() {
                             }
                             className="cursor-pointer text-xs text-slate-600 transition hover:bg-slate-50"
                           >
+                            {!isTelecaller && (
+                              <td
+                                className="w-12 px-4 py-4 text-center"
+                                onClick={(event) =>
+                                  event.stopPropagation()
+                                }
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedLeadIds.includes(
+                                    lead.id,
+                                  )}
+                                  onChange={() =>
+                                    toggleLeadSelection(
+                                      lead.id,
+                                    )
+                                  }
+                                  disabled={saving}
+                                  aria-label={`Select ${lead.name}`}
+                                  className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[var(--brand)] focus:ring-[var(--brand)]"
+                                />
+                              </td>
+                            )}
+
                             <td className="px-5 py-4">
                               <div className="font-bold text-slate-900">
                                 {
@@ -1198,6 +1417,18 @@ export function LeadsWorkspace() {
                                   lead.status_display
                                 }
                               </span>
+                            </td>
+
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              {lead.latest_call_outcome_display ? (
+                                <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-700">
+                                  {lead.latest_call_outcome_display}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">
+                                  Not called
+                                </span>
+                              )}
                             </td>
 
                             <td className="px-4 py-4">

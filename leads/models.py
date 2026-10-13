@@ -524,6 +524,28 @@ class LeadQualification(models.Model):
         blank=True,
     )
 
+    manual_eligibility_confirmed = models.BooleanField(
+        default=False,
+        db_index=True,
+    )
+
+    manual_eligibility_confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="manual_eligibility_confirmations",
+        null=True,
+        blank=True,
+    )
+
+    manual_eligibility_confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    manual_eligibility_confirmation_reason = models.TextField(
+        blank=True,
+    )
+
     qualified_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,

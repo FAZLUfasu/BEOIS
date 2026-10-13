@@ -79,6 +79,12 @@ export function createLead(
   );
 }
 
+export function deleteLead(id: string) {
+  return apiRequest<void>(`/leads/${id}/`, {
+    method: "DELETE",
+  });
+}
+
 export function updateLead(
   id: string,
   payload: Partial<LeadUpdatePayload>,
@@ -234,6 +240,19 @@ export function qualifyLead(
     {
       method: "POST",
       body: JSON.stringify({}),
+    },
+  );
+}
+
+export function confirmLeadEligibility(
+  id: string,
+  payload: { confirmed: true; reason: string },
+) {
+  return apiRequest<LeadDetail>(
+    `/leads/${id}/confirm-eligibility/`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
     },
   );
 }

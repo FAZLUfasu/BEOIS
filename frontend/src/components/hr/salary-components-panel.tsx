@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/lib/auth/auth-context";
+
 import {
   useCallback,
   useEffect,
@@ -37,6 +39,17 @@ function errorMessage(error: unknown) {
 
 
 export function SalaryComponentsPanel() {
+  const { hasPermission } = useAuth();
+
+  const canViewComponent =
+    hasPermission("hr.view_salarycomponent");
+
+  const canCreateComponent =
+    hasPermission("hr.add_salarycomponent");
+
+  const canChangeComponent =
+    hasPermission("hr.change_salarycomponent");
+
   const [
     components,
     setComponents,
@@ -180,14 +193,16 @@ export function SalaryComponentsPanel() {
               Refresh
             </button>
 
-            <button
-              type="button"
-              onClick={createNew}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              <Plus className="h-4 w-4" />
-              New Component
-            </button>
+            {canCreateComponent ? (
+              <button
+                type="button"
+                onClick={createNew}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <Plus className="h-4 w-4" />
+                New Component
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -340,18 +355,20 @@ export function SalaryComponentsPanel() {
                         </td>
 
                         <td className="px-5 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              edit(
-                                component,
-                              )
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Edit
-                          </button>
+                          {canChangeComponent ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                edit(
+                                  component,
+                                )
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </button>
+                          ) : null}
                         </td>
                       </tr>
                     ),

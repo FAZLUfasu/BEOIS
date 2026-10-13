@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import OuterRef, Subquery, Q
 from django.utils import timezone
 
 from rest_framework import status
@@ -27,12 +27,14 @@ from .import_services import (
     create_import_preview,
 )
 from .models import (
+    CallLog,
     Lead,
     LeadAppointment,
     LeadImportBatch,
 )
 from .permissions import (
     CanAccessLeads,
+    CanDeleteLead,
     CanImportMarketingLeads,
     CanManageLeadAssignment,
 )
@@ -57,6 +59,7 @@ from .serializers import (
     LeadCourseOptionSerializer,
     LeadQualificationSerializer,
     LeadQualificationUpdateSerializer,
+    ConfirmLeadEligibilitySerializer,
     VisitBranchSerializer,
 )
 from .services import (
@@ -64,6 +67,7 @@ from .services import (
     assign_lead,
     change_lead_appointment_status,
     change_lead_status,
+    confirm_lead_eligibility,
     mark_lead_qualified,
     record_call,
     save_lead_qualification,
@@ -89,9 +93,22 @@ class LeadViewSet(ModelViewSet):
         "get",
         "post",
         "patch",
+        "delete",
         "head",
         "options",
     ]
+
+    def get_permissions(self):
+        if self.action == "destroy":
+            return [
+                IsAuthenticated(),
+                CanDeleteLead(),
+            ]
+
+        return [
+            IsAuthenticated(),
+            CanAccessLeads(),
+        ]
 
     # ============================================================
     # QUERYSET / FILTERING
@@ -119,10 +136,18 @@ class LeadViewSet(ModelViewSet):
                 self.request.user
             )
 
+        latest_call = CallLog.objects.filter(
+            lead_id=OuterRef("pk")
+        ).order_by("-called_at", "-created_at")
+
         queryset = queryset.select_related(
             "assigned_to",
             "created_by",
             "partner",
+        ).annotate(
+            latest_call_outcome=Subquery(
+                latest_call.values("outcome")[:1]
+            )
         )
 
         search = self.request.query_params.get(
@@ -1461,6 +1486,47 @@ class LeadViewSet(ModelViewSet):
                 lead
             ).data
         )
+
+    # ============================================================
+    # MANUAL ELIGIBILITY CONFIRMATION
+    # POST /api/leads/{id}/confirm-eligibility/
+    # ============================================================
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="confirm-eligibility",
+    )
+    def confirm_eligibility(
+        self,
+        request,
+        pk=None,
+    ):
+        lead = self.get_object()
+        serializer = ConfirmLeadEligibilitySerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            confirm_lead_eligibility(
+                lead=lead,
+                performed_by=request.user,
+                reason=serializer.validated_data["reason"],
+            )
+        except ValidationError as exc:
+            detail = (
+                exc.message_dict
+                if hasattr(exc, "message_dict")
+                else exc.messages
+            )
+            return Response(
+                {"detail": detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        refreshed_lead = self.get_queryset().get(pk=lead.pk)
+        return Response(LeadDetailSerializer(refreshed_lead).data)
 
     # ============================================================
     # OPTIONAL COLLEGE VISITS

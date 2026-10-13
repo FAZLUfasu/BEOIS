@@ -119,9 +119,9 @@ function LiveStatCard({
   icon,
 }: LiveStatCardProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-shadow duration-200 hover:border-blue-200 hover:shadow-lg motion-reduce:transition-none">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex size-11 items-center justify-center rounded-xl bg-blue-50 text-[var(--brand)]">
+        <div className="flex size-11 items-center justify-center rounded-xl bg-blue-50 text-[var(--brand)] ring-1 ring-inset ring-blue-100">
           {icon}
         </div>
 
@@ -130,15 +130,15 @@ function LiveStatCard({
         )}
       </div>
 
-      <div className="mt-5 text-[13px] font-medium text-slate-500">
+      <div className="mt-5 text-[13px] font-semibold tracking-wide text-slate-600">
         {title}
       </div>
 
-      <div className="mt-2 text-[29px] font-bold tracking-tight text-slate-950">
+      <div className="mt-2 break-words text-3xl font-bold tracking-tight text-slate-950 tabular-nums">
         {value}
       </div>
 
-      <div className="mt-2 text-[11px] text-slate-400">
+      <div className="mt-2 text-xs leading-5 text-slate-500">
         {subtitle}
       </div>
     </div>
@@ -157,7 +157,7 @@ function AttentionRow({
   value,
 }: AttentionRowProps) {
   return (
-    <div className="flex items-center justify-between gap-4 border-t border-slate-100 px-5 py-4 first:border-t-0">
+    <div className="flex items-center justify-between gap-4 border-t border-slate-100 px-5 py-4 transition-colors first:border-t-0 hover:bg-slate-50/80 motion-reduce:transition-none">
       <div>
         <div className="text-[13px] font-semibold text-slate-800">
           {title}
