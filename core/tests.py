@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from accounts.models import Role, UserRole
+
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -206,6 +208,21 @@ class SystemSettingsAPITests(TestCase):
             is_superuser=True,
         )
 
+        self.general_manager_role = Role.objects.create(
+            name="Settings Test General Manager",
+            code="GENERAL_MANAGER",
+        )
+
+        self.management_user = create_user(
+            "settings_management",
+        )
+
+        UserRole.objects.create(
+            user=self.management_user,
+            role=self.general_manager_role,
+            scope_type=UserRole.ScopeType.ORGANIZATION,
+        )
+
     def test_anonymous_user_cannot_read_settings(self):
         response = self.client.get(
             self.settings_url
@@ -219,7 +236,7 @@ class SystemSettingsAPITests(TestCase):
             ],
         )
 
-    def test_authenticated_user_can_read_settings(self):
+    def test_regular_user_cannot_read_settings(self):
         self.client.force_authenticate(
             self.regular_user
         )
@@ -230,14 +247,21 @@ class SystemSettingsAPITests(TestCase):
 
         self.assertEqual(
             response.status_code,
-            status.HTTP_200_OK,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_management_user_can_read_settings(self):
+        self.client.force_authenticate(
+            self.management_user
+        )
+
+        response = self.client.get(
+            self.settings_url
         )
 
         self.assertEqual(
-            response.data[
-                "system_short_name"
-            ],
-            "BEOIS",
+            response.status_code,
+            status.HTTP_200_OK,
         )
 
     def test_regular_user_cannot_modify_settings(self):
@@ -332,10 +356,22 @@ class SystemSettingsAPITests(TestCase):
             "STD",
         )
 
-    def test_audit_endpoint(self):
-        settings_object = (
-            SystemSettings.get_settings()
+    def test_regular_user_cannot_read_audit_endpoint(self):
+        self.client.force_authenticate(
+            self.regular_user
         )
+
+        response = self.client.get(
+            self.audit_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_management_user_can_read_audit_endpoint(self):
+        settings_object = SystemSettings.get_settings()
 
         SystemSettingsAudit.objects.create(
             settings=settings_object,
@@ -349,7 +385,7 @@ class SystemSettingsAPITests(TestCase):
         )
 
         self.client.force_authenticate(
-            self.regular_user
+            self.management_user
         )
 
         response = self.client.get(
@@ -360,7 +396,6 @@ class SystemSettingsAPITests(TestCase):
             response.status_code,
             status.HTTP_200_OK,
         )
-
         self.assertEqual(
             len(response.data),
             1,

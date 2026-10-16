@@ -515,7 +515,7 @@ def confirm_lead_eligibility(
     try:
         qualification = (
             LeadQualification.objects
-            .select_for_update()
+            .select_for_update(of=("self",))
             .select_related("selected_program")
             .get(lead=locked_lead)
         )

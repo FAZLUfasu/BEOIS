@@ -105,10 +105,8 @@ class LeadViewSet(ModelViewSet):
                 CanDeleteLead(),
             ]
 
-        return [
-            IsAuthenticated(),
-            CanAccessLeads(),
-        ]
+        # Respect permission_classes declared on individual @action methods.
+        return super().get_permissions()
 
     # ============================================================
     # QUERYSET / FILTERING
