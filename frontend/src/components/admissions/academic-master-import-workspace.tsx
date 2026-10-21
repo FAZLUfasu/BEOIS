@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, ShieldCheck, UploadCloud } from "lucide-react";
@@ -10,16 +10,6 @@ import {
   type AcademicImportReport,
 } from "@/lib/api/academic-master-import";
 
-const managementRoles = [
-  "SUPER_ADMIN",
-  "FULL_ACCESS",
-  "CHAIRMAN",
-  "GENERAL_MANAGER",
-  "ADMISSION",
-  "MANAGER",
-  "DEPARTMENT_HEAD",
-];
-
 function Metric({ label, value }: { label: string; value: number | undefined }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -29,8 +19,21 @@ function Metric({ label, value }: { label: string; value: number | undefined }) 
   );
 }
 
+const requiredPermissions = [
+    "admissions.add_institution",
+    "admissions.change_institution",
+    "admissions.add_program",
+    "admissions.change_program",
+    "admissions.add_programfeeplan",
+    "admissions.change_programfeeplan",
+    "admissions.add_programfeeinstallment",
+    "admissions.change_programfeeinstallment",
+    "admissions.add_programinternalfinance",
+    "admissions.change_programinternalfinance",
+] as const;
+
 export function AcademicMasterImportWorkspace() {
-  const { user, loading, hasRole } = useAuth();
+  const { user, loading } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [report, setReport] = useState<AcademicImportReport | null>(null);
   const [acknowledge, setAcknowledge] = useState(false);
@@ -39,8 +42,12 @@ export function AcademicMasterImportWorkspace() {
   const [error, setError] = useState("");
 
   const allowed = useMemo(
-    () => Boolean(user?.is_superuser) || hasRole(...managementRoles),
-    [hasRole, user?.is_superuser],
+    () =>
+      Boolean(user?.is_superuser) ||
+      requiredPermissions.every((permission) =>
+        user?.permissions.includes(permission),
+      ),
+    [user?.is_superuser, user?.permissions],
   );
 
   if (loading) {
@@ -125,7 +132,7 @@ export function AcademicMasterImportWorkspace() {
         <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 text-center hover:border-blue-400">
           <FileSpreadsheet className="h-9 w-9 text-slate-400" />
           <span className="mt-3 text-sm font-medium text-slate-800">{file ? file.name : "Choose academic master Excel workbook"}</span>
-          <span className="mt-1 text-xs text-slate-500">.xlsx only · maximum 15 MB</span>
+          <span className="mt-1 text-xs text-slate-500">.xlsx only Â· maximum 15 MB</span>
           <input
             className="hidden"
             type="file"
@@ -145,7 +152,7 @@ export function AcademicMasterImportWorkspace() {
             onClick={runDryRun}
             className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {busy && !report ? "Running dry run…" : "Run Dry Run"}
+            {busy && !report ? "Running dry runâ€¦" : "Run Dry Run"}
           </button>
         </div>
       </section>
@@ -237,7 +244,7 @@ export function AcademicMasterImportWorkspace() {
               onClick={confirmImport}
               className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy ? "Importing…" : "Confirm Import"}
+              {busy ? "Importingâ€¦" : "Confirm Import"}
             </button>
           </div>
         </section>

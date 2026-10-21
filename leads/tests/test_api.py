@@ -2,6 +2,7 @@ from datetime import timedelta
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
@@ -80,6 +81,12 @@ class LeadsAPISecurityTests(APITestCase):
         cls.department_head_role = Role.objects.create(
             name="Department Head Test",
             code="DEPARTMENT_HEAD",
+        )
+        cls.department_head_role.permissions.add(
+            Permission.objects.get(
+                content_type__app_label="leads",
+                codename="change_lead",
+            )
         )
 
         cls.telecaller_role = Role.objects.create(
@@ -523,6 +530,98 @@ class LeadsAPISecurityTests(APITestCase):
             self.telecaller,
         )
 
+    def test_custom_role_with_change_lead_can_assign_within_scope(self):
+        role = Role.objects.create(
+            name="Custom Lead Assigner Test",
+            code="CUSTOM_LEAD_ASSIGNER_TEST",
+        )
+        role.permissions.add(
+            Permission.objects.get(
+                content_type__app_label="leads",
+                codename="view_lead",
+            ),
+            Permission.objects.get(
+                content_type__app_label="leads",
+                codename="change_lead",
+            ),
+        )
+
+        user = User.objects.create_user(
+            username="custom_lead_assigner_test",
+            email="customassigner@test.local",
+            password="TestPassword123!",
+        )
+        Employee.objects.create(
+            user=user,
+            branch=self.branch,
+            department=self.marketing_department,
+            employment_status="ACTIVE",
+        )
+        UserRole.objects.create(
+            user=user,
+            role=role,
+            scope_type=UserRole.ScopeType.DEPARTMENT,
+            department=self.marketing_department,
+        )
+
+        self.authenticate(user)
+        response = self.client.post(
+            f"/api/leads/{self.telecaller_lead.id}/assign/",
+            {"user_id": str(self.other_telecaller.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.telecaller_lead.refresh_from_db()
+        self.assertEqual(
+            self.telecaller_lead.assigned_to,
+            self.other_telecaller,
+        )
+
+    def test_custom_role_without_change_lead_cannot_assign(self):
+        role = Role.objects.create(
+            name="Custom Lead Viewer Test",
+            code="CUSTOM_LEAD_VIEWER_TEST",
+        )
+        role.permissions.add(
+            Permission.objects.get(
+                content_type__app_label="leads",
+                codename="view_lead",
+            )
+        )
+
+        user = User.objects.create_user(
+            username="custom_lead_viewer_test",
+            email="customviewer@test.local",
+            password="TestPassword123!",
+        )
+        Employee.objects.create(
+            user=user,
+            branch=self.branch,
+            department=self.marketing_department,
+            employment_status="ACTIVE",
+        )
+        UserRole.objects.create(
+            user=user,
+            role=role,
+            scope_type=UserRole.ScopeType.DEPARTMENT,
+            department=self.marketing_department,
+        )
+
+        self.authenticate(user)
+        response = self.client.post(
+            f"/api/leads/{self.telecaller_lead.id}/assign/",
+            {"user_id": str(self.other_telecaller.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.telecaller_lead.refresh_from_db()
+        self.assertEqual(
+            self.telecaller_lead.assigned_to,
+            self.telecaller,
+        )
+
     def test_telecaller_cannot_assign_leads(self):
         self.authenticate(
             self.telecaller
@@ -907,6 +1006,12 @@ class MarketingLeadImportAPITests(APITestCase):
         cls.department_head_role = Role.objects.create(
             name="Import Department Head",
             code="DEPARTMENT_HEAD",
+        )
+        cls.department_head_role.permissions.set(
+            Permission.objects.filter(
+                content_type__app_label="leads",
+                codename="add_leadimportbatch",
+            )
         )
 
         cls.telecaller_role = Role.objects.create(

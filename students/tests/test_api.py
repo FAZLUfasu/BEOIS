@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.contrib.auth.models import Permission
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -88,6 +89,12 @@ class StudentsAPITests(APITestCase):
             name="Students Test Department Head",
             code="DEPARTMENT_HEAD",
         )
+
+        student_permissions = Permission.objects.filter(
+            content_type__app_label="students"
+        )
+        self.education_role.permissions.set(student_permissions)
+        self.hod_role.permissions.set(student_permissions)
 
         # ========================================================
         # USERS

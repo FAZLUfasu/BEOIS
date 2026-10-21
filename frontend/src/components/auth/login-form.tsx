@@ -29,8 +29,17 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const requestedDestination =
+    searchParams.get("next");
+
   const destination =
-    searchParams.get("next") || "/";
+    requestedDestination &&
+    requestedDestination.startsWith("/") &&
+    !requestedDestination.startsWith("//") &&
+    !requestedDestination.includes("\\") &&
+    !/[\u0000-\u001F\u007F]/.test(requestedDestination)
+      ? requestedDestination
+      : "/";
 
   const {
     login,

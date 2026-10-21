@@ -54,6 +54,7 @@ interface NavigationSection {
 
 const managementRoles = [
   "SUPER_ADMIN",
+  "FULL_ACCESS",
   "CHAIRMAN",
   "GENERAL_MANAGER",
 ];
@@ -71,11 +72,7 @@ const navigation: NavigationSection[] = [
         name: "Intelligence",
         href: "/intelligence",
         icon: BarChart3,
-        permissions: [
-          "leads.view_lead",
-          "admissions.view_admission",
-          "students.view_student",
-        ],
+        roles: managementRoles,
       },
     ],
   },
@@ -172,6 +169,13 @@ const navigation: NavigationSection[] = [
         name: "Roles & Permissions",
         href: "/settings/roles",
         icon: ShieldCheck,
+        superuserOnly: true,
+      },
+
+      {
+        name: "Dashboard Management",
+        href: "/admin/dashboard-management",
+        icon: LayoutDashboard,
         superuserOnly: true,
       },
 

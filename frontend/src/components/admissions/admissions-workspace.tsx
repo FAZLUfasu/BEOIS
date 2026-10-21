@@ -231,6 +231,7 @@ export function AdmissionsWorkspace() {
   const {
     user,
     hasRole,
+    hasPermission,
   } = useAuth();
 
   const [
@@ -298,18 +299,28 @@ export function AdmissionsWorkspace() {
     useState("");
 
   const canManageAdmission =
-  Boolean(user?.is_superuser) ||
-  hasRole(
-    "SUPER_ADMIN",
-    "CHAIRMAN",
-    "GENERAL_MANAGER",
-    "ADMISSION",
-    "MANAGER",
-    "DEPARTMENT_HEAD",
-  );
+    Boolean(user?.is_superuser) ||
+    hasPermission(
+      "admissions.add_admission",
+      "admissions.change_admission",
+    ) ||
+    hasRole(
+      "SUPER_ADMIN",
+      "CHAIRMAN",
+      "GENERAL_MANAGER",
+      "ADMISSION",
+      "MANAGER",
+      "DEPARTMENT_HEAD",
+    );
 
   const canManageFinance =
     Boolean(user?.is_superuser) ||
+    hasPermission(
+      "admissions.add_admissionfee",
+      "admissions.change_admissionfee",
+      "admissions.add_admissionpayment",
+      "admissions.change_admissionpayment",
+    ) ||
     hasRole(
       "SUPER_ADMIN",
       "GENERAL_MANAGER",

@@ -71,64 +71,66 @@ def _has_any_role(user, role_codes):
     return False
 
 
+def _has_saved_permission(user, *permission_names):
+    """Check permissions assigned through active BEOIS roles."""
+    if not _authenticated_active_user(user):
+        return False
+    if user.is_superuser:
+        return True
+    if not hasattr(user, "get_role_permissions"):
+        return False
+    saved = user.get_role_permissions()
+    return any(name in saved for name in permission_names)
+
+
 def has_finance_access(user):
-    """
-    Read access to Finance.
-
-    Finance:
-        Full Finance visibility.
-
-    General Manager:
-        Management/reporting visibility.
-
-    Chairman:
-        Review/reporting visibility.
-
-    Super Admin:
-        Full access.
-    """
-
-    return _has_any_role(
+    """Allow Finance visibility when a saved Finance view permission exists."""
+    return _has_saved_permission(
         user,
-        FINANCE_READ_ROLES,
+        "finance.view_expense",
+        "finance.view_expensepayment",
+        "finance.view_financeactivity",
+        "finance.view_financialaccount",
+        "finance.view_financialtransaction",
+        "finance.view_transactioncategory",
+        "finance.view_universitypayable",
+        "finance.view_universitypayment",
     )
 
 
 def can_manage_finance(user):
-    """
-    Create/manage operational Finance records.
-
-    Chairman is intentionally excluded from routine
-    operational Finance work.
-    """
-
-    return _has_any_role(
+    """Allow routine Finance management when a saved add/change permission exists."""
+    return _has_saved_permission(
         user,
-        FINANCE_MANAGE_ROLES,
+        "finance.add_expense",
+        "finance.change_expense",
+        "finance.add_financeactivity",
+        "finance.change_financeactivity",
+        "finance.add_financialaccount",
+        "finance.change_financialaccount",
+        "finance.add_financialtransaction",
+        "finance.change_financialtransaction",
+        "finance.add_transactioncategory",
+        "finance.change_transactioncategory",
+        "finance.add_universitypayable",
+        "finance.change_universitypayable",
     )
 
 
 def can_approve_finance(user):
-    """
-    Approve supported Finance workflows.
-    """
-
-    return _has_any_role(
+    """Expense approval requires an explicit saved approval permission."""
+    return _has_saved_permission(
         user,
-        FINANCE_APPROVAL_ROLES,
+        "finance.approve_expense",
     )
 
 
 def can_make_finance_payment(user):
-    """
-    Execute actual Finance payment/posting operations.
-
-    Restricted to Finance and Super Admin.
-    """
-
-    return _has_any_role(
+    """Payment actions require an appropriate saved payment permission."""
+    return _has_saved_permission(
         user,
-        FINANCE_PAYMENT_ROLES,
+        "finance.add_expensepayment",
+        "finance.add_universitypayment",
     )
 
 

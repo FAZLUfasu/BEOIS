@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.utils import timezone
 
 from rest_framework.test import APITestCase
@@ -70,6 +71,15 @@ class LeadDistributionAPITests(APITestCase):
             defaults={
                 "name": "Telecaller",
             },
+        )
+
+        # Explicit saved permissions for the department-scoped manager.
+        # Telecaller roles intentionally receive no assignment permission.
+        cls.manager_role.permissions.add(
+            *Permission.objects.filter(
+                content_type__app_label="leads",
+                codename__in=["view_lead", "change_lead"],
+            )
         )
 
         # ========================================================

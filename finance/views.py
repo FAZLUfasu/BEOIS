@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from dashboard.selectors import get_scoped_admissions
 from rest_framework.views import APIView
 
 from admissions.models import (
@@ -45,6 +46,14 @@ from .serializers import (
     UniversityPayableCreateSerializer,
     UniversityPayableSerializer,
     UniversityPaymentInputSerializer,
+)
+
+from .scopes import (
+    scope_financial_accounts,
+    scope_financial_transactions,
+    scope_expenses,
+    scope_university_payables,
+    scope_finance_activity,
 )
 
 from .services import (
@@ -144,6 +153,13 @@ class FinancialAccountViewSet(viewsets.ModelViewSet):
     )
 
     serializer_class = FinancialAccountSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return scope_financial_accounts(
+            self.request.user,
+            queryset,
+        )
 
     def create(self, request, *args, **kwargs):
         if not CanManageFinance().has_permission(
@@ -376,7 +392,10 @@ class FinancialTransactionViewSet(
     )
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = scope_financial_transactions(
+            self.request.user,
+            super().get_queryset(),
+        )
 
         transaction_type = (
             self.request.query_params.get(
@@ -682,7 +701,10 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     )
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = scope_expenses(
+            self.request.user,
+            super().get_queryset(),
+        )
 
         expense_status = (
             self.request.query_params.get(
@@ -781,6 +803,14 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         methods=["post"],
     )
     def submit(self, request, pk=None):
+        if not request.user.has_role_permission(
+            "finance.change_expense"
+        ):
+            return Response(
+                {"detail": "Permission denied."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         expense = self.get_object()
 
         try:
@@ -909,6 +939,13 @@ class UniversityPayableViewSet(
         )
         .all()
     )
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return scope_university_payables(
+            self.request.user,
+            queryset,
+        )
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -1229,6 +1266,9 @@ class FinanceSummaryView(APIView):
             end_date=end_date,
             branch=branch,
             business_unit=business_unit,
+            transactions=scope_financial_transactions(
+                request.user, FinancialTransaction.objects.all()
+            ),
         )
 
         return Response(result)
@@ -1242,7 +1282,12 @@ class OutstandingFinanceSummaryView(APIView):
 
     def get(self, request):
         return Response(
-            get_outstanding_finance_summary()
+            get_outstanding_finance_summary(
+                expenses=scope_expenses(request.user, Expense.objects.all()),
+                university_payables=scope_university_payables(
+                    request.user, UniversityPayable.objects.all()
+                ),
+            )
         )
 
 
@@ -1254,13 +1299,19 @@ class AdmissionFinancialSummaryView(APIView):
 
     def get(self, request, pk):
         admission = get_object_or_404(
-            Admission,
+            get_scoped_admissions(request.user),
             pk=pk,
         )
 
         return Response(
             get_admission_financial_summary(
-                admission
+                admission,
+                transactions=scope_financial_transactions(
+                    request.user, FinancialTransaction.objects.all()
+                ),
+                university_payables=scope_university_payables(
+                    request.user, UniversityPayable.objects.all()
+                ),
             )
         )
 
@@ -1292,3 +1343,10 @@ class FinanceActivityViewSet(
         )
         .all()
     )
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return scope_finance_activity(
+            self.request.user,
+            queryset,
+        )

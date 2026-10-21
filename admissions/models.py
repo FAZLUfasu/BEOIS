@@ -1149,3 +1149,19 @@ class AdmissionActivity(models.Model):
             f"{self.admission.admission_id} - "
             f"{self.get_activity_type_display()}"
         )
+
+
+class AcademicMasterImportClaim(models.Model):
+    """Database-backed, single-use import token claim."""
+
+    token_digest = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+    )
+    claimed_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        db_table = "academic_master_import_claim"

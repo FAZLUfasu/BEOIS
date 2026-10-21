@@ -78,6 +78,19 @@ const MANAGEMENT_ROLES = [
   "DEPARTMENT_HEAD",
 ];
 
+const academicMasterManagePermissions = [
+  "admissions.add_institution",
+  "admissions.change_institution",
+  "admissions.add_program",
+  "admissions.change_program",
+  "admissions.add_programfeeplan",
+  "admissions.change_programfeeplan",
+  "admissions.add_programfeeinstallment",
+  "admissions.change_programfeeinstallment",
+  "admissions.add_programinternalfinance",
+  "admissions.change_programinternalfinance",
+];
+
 function inputClassName() {
   return [
     "w-full rounded-xl border border-slate-200",
@@ -1100,17 +1113,33 @@ function ComparisonPanel({
 }
 
 export function UniversitiesWorkspace() {
-  const { hasRole } = useAuth();
+  const {
+    user,
+    hasRole,
+    hasPermission,
+  } = useAuth();
 
-  const canManage = hasRole(
-    ...MANAGEMENT_ROLES,
-  );
+  const canManage =
+    Boolean(user?.is_superuser) ||
+    academicMasterManagePermissions.every(
+      (permission) =>
+        user?.permissions.includes(permission),
+    ) ||
+    hasRole(...MANAGEMENT_ROLES);
 
-  const canView = hasRole(
-    ...MANAGEMENT_ROLES,
-    "TELECALLER",
-    "COUNSELOR",
-  );
+  const canView =
+    hasPermission(
+      "admissions.view_institution",
+      "admissions.view_program",
+      "admissions.view_programfeeplan",
+      "admissions.view_programfeeinstallment",
+      "admissions.view_programinternalfinance",
+    ) ||
+    hasRole(
+      ...MANAGEMENT_ROLES,
+      "TELECALLER",
+      "COUNSELOR",
+    );
 
   const [institutions, setInstitutions] =
     useState<Institution[]>([]);

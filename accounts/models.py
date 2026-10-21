@@ -62,8 +62,12 @@ class User(AbstractUser):
         if self.is_superuser:
             return True
 
+        role_codes = {role_code}
+        if role_code in {"SUPER_ADMIN", "SUPER_ADMINISTRATOR"}:
+            role_codes = {"SUPER_ADMIN", "SUPER_ADMINISTRATOR"}
+
         return self.role_assignments.filter(
-            role__code=role_code,
+            role__code__in=role_codes,
             role__is_active=True,
             is_active=True,
         ).exists()

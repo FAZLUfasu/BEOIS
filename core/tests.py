@@ -401,6 +401,88 @@ class SystemSettingsAPITests(TestCase):
             1,
         )
 
+    def test_super_admin_role_can_modify_settings(self):
+        role = Role.objects.create(
+            name="Settings Test Super Admin",
+            code="SUPER_ADMIN",
+        )
+        user = create_user("settings_super_admin_role")
+        UserRole.objects.create(
+            user=user,
+            role=role,
+            scope_type=UserRole.ScopeType.ORGANIZATION,
+        )
+
+        self.client.force_authenticate(user)
+        response = self.client.patch(
+            self.settings_url,
+            {"system_name": "Role Admin Update"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_general_manager_cannot_modify_settings(self):
+        self.client.force_authenticate(self.management_user)
+        response = self.client.patch(
+            self.settings_url,
+            {"system_name": "Unauthorized Manager Update"},
+            format="json",
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_chairman_can_read_but_cannot_modify_settings(self):
+        role = Role.objects.create(
+            name="Settings Test Chairman",
+            code="CHAIRMAN",
+        )
+        user = create_user("settings_chairman")
+        UserRole.objects.create(
+            user=user,
+            role=role,
+            scope_type=UserRole.ScopeType.ORGANIZATION,
+        )
+
+        self.client.force_authenticate(user)
+        read_response = self.client.get(self.settings_url)
+        self.assertEqual(read_response.status_code, status.HTTP_200_OK)
+
+        write_response = self.client.patch(
+            self.settings_url,
+            {"system_name": "Unauthorized Chairman Update"},
+            format="json",
+        )
+        self.assertEqual(
+            write_response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_inactive_super_admin_assignment_cannot_modify_settings(self):
+        role = Role.objects.create(
+            name="Settings Test Inactive Super Admin",
+            code="SUPER_ADMIN",
+        )
+        user = create_user("settings_inactive_super_admin")
+        UserRole.objects.create(
+            user=user,
+            role=role,
+            scope_type=UserRole.ScopeType.ORGANIZATION,
+            is_active=False,
+        )
+
+        self.client.force_authenticate(user)
+        response = self.client.patch(
+            self.settings_url,
+            {"system_name": "Unauthorized Inactive Update"},
+            format="json",
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
     def test_put_is_not_allowed(self):
         self.client.force_authenticate(
             self.superuser

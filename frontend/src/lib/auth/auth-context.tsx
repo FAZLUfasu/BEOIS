@@ -123,9 +123,20 @@ export function AuthProvider({
           ),
         );
 
-        return roles.some((role) =>
-          userRoles.has(role),
-        );
+        const superAdminRoleCodes = new Set([
+          "SUPER_ADMIN",
+          "SUPER_ADMINISTRATOR",
+        ]);
+
+        return roles.some((role) => {
+          if (superAdminRoleCodes.has(role)) {
+            return [...superAdminRoleCodes].some((code) =>
+              userRoles.has(code),
+            );
+          }
+
+          return userRoles.has(role);
+        });
       },
       [user],
     );

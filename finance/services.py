@@ -1085,13 +1085,10 @@ def create_manual_expense_transaction(
 # ================================================================
 
 
-def get_finance_summary(
-    start_date=None,
-    end_date=None,
-    branch=None,
-    business_unit=None,
-):
-    transactions = FinancialTransaction.objects.filter(
+def get_finance_summary(start_date=None, end_date=None, branch=None, business_unit=None, transactions=None):
+    if transactions is None:
+        transactions = FinancialTransaction.objects.all()
+    transactions = transactions.filter(
         status=FinancialTransaction.Status.POSTED
     )
 
@@ -1142,15 +1139,20 @@ def get_finance_summary(
 # ================================================================
 
 
-def get_outstanding_finance_summary():
-    university_payables = UniversityPayable.objects.exclude(
+def get_outstanding_finance_summary(expenses=None, university_payables=None):
+    if university_payables is None:
+        university_payables = UniversityPayable.objects.all()
+    if expenses is None:
+        expenses = Expense.objects.all()
+
+    university_payables = university_payables.exclude(
         status__in=[
             UniversityPayable.Status.PAID,
             UniversityPayable.Status.CANCELLED,
         ]
     )
 
-    expenses = Expense.objects.exclude(
+    expenses = expenses.exclude(
         status__in=[
             Expense.Status.PAID,
             Expense.Status.REJECTED,
@@ -1193,8 +1195,10 @@ def get_outstanding_finance_summary():
 # ================================================================
 
 
-def get_admission_financial_summary(admission):
-    transactions = FinancialTransaction.objects.filter(
+def get_admission_financial_summary(admission, transactions=None, university_payables=None):
+    if transactions is None:
+        transactions = FinancialTransaction.objects.all()
+    transactions = transactions.filter(
         admission=admission,
         status=FinancialTransaction.Status.POSTED,
     )
@@ -1233,7 +1237,11 @@ def get_admission_financial_summary(admission):
         - direct_costs
     )
 
-    university_payables = admission.university_payables.exclude(
+    if university_payables is None:
+        university_payables = admission.university_payables.all()
+    else:
+        university_payables = university_payables.filter(admission=admission)
+    university_payables = university_payables.exclude(
         status=UniversityPayable.Status.CANCELLED
     )
 

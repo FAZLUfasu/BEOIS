@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.utils import timezone
 
 from rest_framework.test import APITestCase
@@ -87,6 +88,32 @@ class AdmissionsAPITests(APITestCase):
             name="Finance Test",
             code="FINANCE",
         )
+
+        # Explicit permissions for admission finance API tests.
+        # These assignments affect test roles only.
+        admission_finance_permissions = Permission.objects.filter(
+            content_type__app_label="admissions",
+            codename__in=[
+                "add_admissionfee",
+                "view_admissionfee",
+                "add_admissionpayment",
+                "view_admissionpayment",
+            ],
+        )
+        if admission_finance_permissions.count() != 4:
+            raise RuntimeError(
+                "Expected all four AdmissionFee/AdmissionPayment "
+                "permissions. Check Django migrations/content types."
+            )
+        cls.admission_role.permissions.add(
+            *admission_finance_permissions
+        )
+
+        payment_permission = Permission.objects.get(
+            content_type__app_label="admissions",
+            codename="add_admissionpayment",
+        )
+        cls.finance_role.permissions.add(payment_permission)
 
         # ========================================================
         # ADMISSION USER
@@ -749,6 +776,19 @@ class AdmissionsAPITests(APITestCase):
     # ============================================================
     # LEAD -> ADMISSION
     # ============================================================
+
+    def test_direct_admission_creation_is_rejected(self):
+        self.authenticate(self.admission_user)
+        initial_count = Admission.objects.count()
+
+        response = self.client.post(
+            "/api/admissions/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(Admission.objects.count(), initial_count)
 
     def test_qualified_lead_can_be_converted_to_admission(self):
 
@@ -1690,3 +1730,230 @@ class AdmissionsAPITests(APITestCase):
             self.own_admission.admission_id,
             ids,
         )
+
+
+    # ============================================================
+    # ADMISSION FINANCE PERMISSION REGRESSION TESTS
+    # ============================================================
+
+    def _make_finance_regression_user(self, username, permission_codenames=()):
+        role = Role.objects.create(
+            name=f"Regression {username}",
+            code=f"REG_{username.upper()}",
+        )
+
+        # Baseline admission access ensures the test reaches the
+        # action-specific finance permission check.
+        baseline_permission = Permission.objects.get(
+            content_type__app_label="admissions",
+            codename="view_admission",
+        )
+        role.permissions.add(baseline_permission)
+
+        for codename in permission_codenames:
+            permission = Permission.objects.get(
+                content_type__app_label="admissions",
+                codename=codename,
+            )
+            role.permissions.add(permission)
+
+        user = User.objects.create_user(
+            username=username,
+            email=f"{username}@test.local",
+            password="RegressionPassword123!",
+        )
+        UserRole.objects.create(
+            user=user,
+            role=role,
+            # Organization scope lets this test user reach the target
+            # admission, so 403 responses exercise finance permissions.
+            scope_type=UserRole.ScopeType.ORGANIZATION,
+        )
+        return user
+
+    def _finance_url(self, action):
+        return f"/api/admissions/{self.own_admission.pk}/{action}/"
+
+    def test_fee_permission_does_not_grant_payment_or_summary_access(self):
+        user = self._make_finance_regression_user(
+            "reg_fee_only",
+            ("add_admissionfee",),
+        )
+        self.authenticate(user)
+
+        self.assertEqual(
+            self.client.get(self._finance_url("fees")).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(
+                self._finance_url("payments"),
+                {
+                    "amount": "100.00",
+                    "payment_method": "UPI",
+                    "reference_number": "REG-FEE-ONLY",
+                },
+                format="json",
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(
+                self._finance_url("fee-summary")
+            ).status_code,
+            403,
+        )
+
+    def test_payment_permission_does_not_grant_fee_or_summary_access(self):
+        user = self._make_finance_regression_user(
+            "reg_payment_only",
+            ("add_admissionpayment",),
+        )
+        self.authenticate(user)
+
+        self.assertEqual(
+            self.client.post(
+                self._finance_url("fees"),
+                {
+                    "fee_type": "ADMISSION",
+                    "description": "Regression fee",
+                    "amount": "100.00",
+                },
+                format="json",
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(self._finance_url("payments")).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(
+                self._finance_url("fee-summary")
+            ).status_code,
+            403,
+        )
+
+    def test_read_permissions_do_not_grant_finance_write_access(self):
+        cases = (
+            (
+                "reg_fee_reader_cannot_create",
+                ("view_admissionfee",),
+                "fees",
+                {
+                    "fee_type": "ADMISSION",
+                    "description": "Permission regression fee",
+                    "amount": "100.00",
+                },
+            ),
+            (
+                "reg_payment_reader_cannot_record",
+                ("view_admissionpayment",),
+                "payments",
+                {
+                    "amount": "100.00",
+                    "payment_method": "UPI",
+                    "reference_number": "REG-READ-ONLY-PAYMENT",
+                },
+            ),
+        )
+
+        for username, permissions, action, payload in cases:
+            with self.subTest(action=action):
+                user = self._make_finance_regression_user(
+                    username,
+                    permissions,
+                )
+                self.authenticate(user)
+
+                response = self.client.post(
+                    self._finance_url(action),
+                    payload,
+                    format="json",
+                )
+
+                self.assertEqual(
+                    response.status_code,
+                    403,
+                    msg=(
+                        f"{username} should not be able to write to "
+                        f"{action} with only {permissions}; got "
+                        f"{response.status_code}: "
+                        f"{response.content[:500]!r}"
+                    ),
+                )
+
+    def test_unrelated_admission_permission_does_not_grant_finance_access(self):
+        user = self._make_finance_regression_user(
+            "reg_unrelated",
+            (),
+        )
+        self.authenticate(user)
+
+        for action in ("fees", "payments", "fee-summary"):
+            with self.subTest(action=action):
+                self.assertEqual(
+                    self.client.get(self._finance_url(action)).status_code,
+                    403,
+                )
+
+    def test_dashboard_or_general_access_without_finance_permissions_is_denied(self):
+        # The user has baseline admission access but none of the four
+        # AdmissionFee/AdmissionPayment permissions.
+        user = self._make_finance_regression_user(
+            "reg_dashboard_only",
+            (),
+        )
+        self.authenticate(user)
+
+        for action in ("fees", "payments", "fee-summary"):
+            with self.subTest(action=action):
+                self.assertEqual(
+                    self.client.get(self._finance_url(action)).status_code,
+                    403,
+                )
+
+    def test_superuser_can_read_financial_endpoints(self):
+        self.authenticate(self.superuser)
+
+        for action in ("fees", "payments", "fee-summary"):
+            with self.subTest(action=action):
+                self.assertEqual(
+                    self.client.get(self._finance_url(action)).status_code,
+                    200,
+                )
+
+    def test_finance_read_endpoints_accept_required_permissions(self):
+        cases = (
+            ("reg_fee_reader", ("view_admissionfee",), "fees"),
+            (
+                "reg_payment_reader",
+                ("view_admissionpayment",),
+                "payments",
+            ),
+            (
+                "reg_summary_reader",
+                ("view_admissionfee", "view_admissionpayment"),
+                "fee-summary",
+            ),
+        )
+
+        for username, permissions, action in cases:
+            with self.subTest(action=action):
+                user = self._make_finance_regression_user(
+                    username,
+                    permissions,
+                )
+                self.authenticate(user)
+
+                response = self.client.get(self._finance_url(action))
+
+                self.assertEqual(
+                    response.status_code,
+                    200,
+                    msg=(
+                        f"{action} should allow {username} with "
+                        f"permissions {permissions}; got "
+                        f"{response.status_code}: {response.content[:500]!r}"
+                    ),
+                )

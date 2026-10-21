@@ -646,6 +646,10 @@ class Expense(models.Model):
             "-created_at",
         ]
 
+        permissions = [
+            ("approve_expense", "Can approve expenses"),
+        ]
+
         indexes = [
             models.Index(
                 fields=["status", "expense_date"],

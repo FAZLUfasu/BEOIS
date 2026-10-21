@@ -3,6 +3,7 @@ import os
 import shutil
 import tempfile
 
+from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
@@ -26,6 +27,92 @@ from .models import (
     UserRole,
 )
 
+
+
+class UserHasRoleCompatibilityTests(APITestCase):
+    """Regression tests for administrator role-code compatibility."""
+
+    def create_assigned_user(
+        self,
+        role_code,
+        role_active=True,
+        assignment_active=True,
+    ):
+        user = User.objects.create_user(
+            username=f"compat-{role_code.lower()}",
+            email=f"compat-{role_code.lower()}@example.com",
+            password="CompatPass123!",
+        )
+
+        role = Role.objects.create(
+            name=f"Compatibility {role_code}",
+            code=role_code,
+            is_active=role_active,
+        )
+
+        UserRole.objects.create(
+            user=user,
+            role=role,
+            is_active=assignment_active,
+        )
+
+        return user
+
+    def test_super_admin_role_code_matches_both_codes(self):
+        user = self.create_assigned_user("SUPER_ADMIN")
+
+        self.assertTrue(user.has_role("SUPER_ADMIN"))
+        self.assertTrue(user.has_role("SUPER_ADMINISTRATOR"))
+
+    def test_super_administrator_role_code_matches_both_codes(self):
+        user = self.create_assigned_user("SUPER_ADMINISTRATOR")
+
+        self.assertTrue(user.has_role("SUPER_ADMIN"))
+        self.assertTrue(user.has_role("SUPER_ADMINISTRATOR"))
+
+    def test_ordinary_role_does_not_grant_admin_access(self):
+        user = self.create_assigned_user("COMPAT_TELECALLER")
+
+        self.assertTrue(user.has_role("COMPAT_TELECALLER"))
+        self.assertFalse(user.has_role("SUPER_ADMIN"))
+        self.assertFalse(user.has_role("SUPER_ADMINISTRATOR"))
+
+    def test_inactive_user_has_no_role_access(self):
+        user = self.create_assigned_user("SUPER_ADMINISTRATOR")
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+
+        self.assertFalse(user.has_role("SUPER_ADMIN"))
+        self.assertFalse(user.has_role("SUPER_ADMINISTRATOR"))
+
+    def test_inactive_role_does_not_grant_admin_access(self):
+        user = self.create_assigned_user(
+            "SUPER_ADMINISTRATOR",
+            role_active=False,
+        )
+
+        self.assertFalse(user.has_role("SUPER_ADMIN"))
+        self.assertFalse(user.has_role("SUPER_ADMINISTRATOR"))
+
+    def test_inactive_assignment_does_not_grant_admin_access(self):
+        user = self.create_assigned_user(
+            "SUPER_ADMINISTRATOR",
+            assignment_active=False,
+        )
+
+        self.assertFalse(user.has_role("SUPER_ADMIN"))
+        self.assertFalse(user.has_role("SUPER_ADMINISTRATOR"))
+
+    def test_django_superuser_retains_existing_role_behavior(self):
+        user = User.objects.create_superuser(
+            username="compat-django-superuser",
+            email="compat-django-superuser@example.com",
+            password="CompatPass123!",
+        )
+
+        self.assertTrue(user.has_role("SUPER_ADMIN"))
+        self.assertTrue(user.has_role("SUPER_ADMINISTRATOR"))
+        self.assertTrue(user.has_role("UNRELATED_ROLE"))
 
 class UserDirectoryAPITests(APITestCase):
 
@@ -907,6 +994,90 @@ class SuperAdminUserManagementAPITests(
         self.assertIn(
             str(self.role.id),
             role_ids,
+        )
+
+    def test_superuser_can_update_role_permissions(self):
+        permission = Permission.objects.get(
+            codename="view_group",
+            content_type__app_label="auth",
+            content_type__model="group",
+        )
+        self.authenticate_superuser()
+
+        response = self.client.patch(
+            reverse(
+                "super-admin-role-detail",
+                kwargs={"pk": self.role.pk},
+            ),
+            {"permissions": [permission.pk]},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+        self.role.refresh_from_db()
+        self.assertEqual(
+            set(self.role.permissions.values_list("id", flat=True)),
+            {permission.pk},
+        )
+
+    def test_role_name_patch_preserves_existing_permissions(self):
+        permission = Permission.objects.get(
+            codename="view_group",
+            content_type__app_label="auth",
+            content_type__model="group",
+        )
+        self.role.permissions.add(permission)
+        self.authenticate_superuser()
+
+        response = self.client.patch(
+            reverse(
+                "super-admin-role-detail",
+                kwargs={"pk": self.role.pk},
+            ),
+            {"name": "Renamed Test Role"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            response.data,
+        )
+        self.role.refresh_from_db()
+        self.assertEqual(self.role.name, "Renamed Test Role")
+        self.assertTrue(
+            self.role.permissions.filter(pk=permission.pk).exists()
+        )
+
+    def test_regular_user_cannot_update_role_permissions(self):
+        permission = Permission.objects.get(
+            codename="view_group",
+            content_type__app_label="auth",
+            content_type__model="group",
+        )
+        self.role.permissions.add(permission)
+        self.client.force_authenticate(user=self.regular_user)
+
+        response = self.client.patch(
+            reverse(
+                "super-admin-role-detail",
+                kwargs={"pk": self.role.pk},
+            ),
+            {"permissions": []},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.role.refresh_from_db()
+        self.assertTrue(
+            self.role.permissions.filter(pk=permission.pk).exists()
         )
 
     def test_superuser_can_assign_role_with_scope(

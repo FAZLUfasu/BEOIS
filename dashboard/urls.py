@@ -1,4 +1,5 @@
 from django.urls import path
+from dashboard.dynamic_views import MyDynamicDashboardView, RoleDashboardConfigView
 
 from dashboard.views import (
     MyDashboardAccessView,
@@ -25,6 +26,8 @@ app_name = "dashboard"
 
 
 urlpatterns = [
+    path("dynamic/me/", MyDynamicDashboardView.as_view(), name="dynamic-me"),
+    path("dynamic/roles/<uuid:role_id>/", RoleDashboardConfigView.as_view(), name="dynamic-role-config"),
     # ========================================================
     # EXISTING DASHBOARDS
     # ========================================================

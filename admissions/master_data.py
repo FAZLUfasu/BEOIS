@@ -18,7 +18,7 @@ from .models import (
     ProgramFeeInstallment,
 )
 from .permissions import (
-    CanManageAdmissions,
+    CanManageAcademicMasterData,
     CanViewAcademicMasterData,
 )
 from .serializers import InstitutionSerializer
@@ -347,7 +347,7 @@ class InstitutionManagementViewSet(ModelViewSet):
         ]:
             return [
                 IsAuthenticated(),
-                CanManageAdmissions(),
+                CanManageAcademicMasterData(),
             ]
 
         return [
@@ -396,7 +396,7 @@ class ProgramManagementViewSet(ModelViewSet):
         ]:
             return [
                 IsAuthenticated(),
-                CanManageAdmissions(),
+                CanManageAcademicMasterData(),
             ]
 
         return [
@@ -509,7 +509,7 @@ class ProgramFeePlanViewSet(ModelViewSet):
         ]:
             return [
                 IsAuthenticated(),
-                CanManageAdmissions(),
+                CanManageAcademicMasterData(),
             ]
 
         return [

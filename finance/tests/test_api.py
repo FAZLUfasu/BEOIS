@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.utils import timezone
 
 from rest_framework import status
@@ -86,6 +87,40 @@ class FinanceAPITests(APITestCase):
         cls.finance_role = Role.objects.create(
             name="Finance API Role",
             code="FINANCE",
+        )
+
+        # Grant the test role explicit saved Finance permissions.
+        # This affects only the isolated test database.
+        finance_permission_codenames = [
+            "view_expense",
+            "view_expensepayment",
+            "view_financeactivity",
+            "view_financialaccount",
+            "view_financialtransaction",
+            "view_transactioncategory",
+            "view_universitypayable",
+            "view_universitypayment",
+            "add_expense",
+            "change_expense",
+            "approve_expense",
+            "add_expensepayment",
+            "add_financeactivity",
+            "change_financeactivity",
+            "add_financialaccount",
+            "change_financialaccount",
+            "add_financialtransaction",
+            "change_financialtransaction",
+            "add_transactioncategory",
+            "change_transactioncategory",
+            "add_universitypayable",
+            "change_universitypayable",
+            "add_universitypayment",
+        ]
+        cls.finance_role.permissions.set(
+            Permission.objects.filter(
+                content_type__app_label="finance",
+                codename__in=finance_permission_codenames,
+            )
         )
 
         cls.staff_role = Role.objects.create(
@@ -696,6 +731,87 @@ class FinanceAPITests(APITestCase):
             ).exists()
         )
 
+    def test_view_only_user_cannot_submit_expense(self):
+        response = self.create_expense(amount="10000.00")
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        expense = Expense.objects.get(
+            description="Office equipment"
+        )
+
+        # Keep view access, but remove both permissions required
+        # to manage expenses.
+        manage_permissions = Permission.objects.filter(
+            content_type__app_label="finance",
+            codename__in=["add_expense", "change_expense"],
+        )
+        self.finance_role.permissions.remove(*manage_permissions)
+
+        response = self.client.post(
+            f"/api/finance/expenses/{expense.id}/submit/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        expense.refresh_from_db()
+        self.assertEqual(expense.status, Expense.Status.DRAFT)
+
+    def test_change_expense_alone_cannot_approve_expense(self):
+        response = self.create_expense(amount="10000.00")
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        expense = Expense.objects.get(
+            description="Office equipment"
+        )
+
+        response = self.client.post(
+            f"/api/finance/expenses/{expense.id}/submit/",
+            {},
+            format="json",
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        approval_permission = Permission.objects.get(
+            content_type__app_label="finance",
+            codename="approve_expense",
+        )
+        self.finance_role.permissions.remove(approval_permission)
+
+        saved_permissions = self.finance_user.get_role_permissions()
+        self.assertIn("finance.change_expense", saved_permissions)
+        self.assertNotIn("finance.approve_expense", saved_permissions)
+
+        response = self.client.post(
+            f"/api/finance/expenses/{expense.id}/approve/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        expense.refresh_from_db()
+        self.assertEqual(
+            expense.status,
+            Expense.Status.SUBMITTED,
+        )
+
     def test_expense_full_workflow(self):
         response = self.create_expense(
             amount="10000.00"
@@ -1186,6 +1302,217 @@ class FinanceAPITests(APITestCase):
             Decimal("7500.00"),
         )
 
+    def test_branch_scoped_user_cannot_read_other_branch_summary(self):
+        other_branch = Branch.objects.create(
+            name="Finance Test Restricted Branch",
+            code="FIN-TEST-OTHER",
+            business_unit=self.business_unit,
+            is_active=True,
+        )
+
+        branch_user = User.objects.create_user(
+            username="finance_branch_scope_test",
+            email="finance.branch.scope@test.local",
+            password="TestPassword123!",
+        )
+
+        UserRole.objects.create(
+            user=branch_user,
+            role=self.finance_role,
+            scope_type=UserRole.ScopeType.BRANCH,
+            branch=self.branch,
+        )
+
+        FinancialTransaction.objects.create(
+            transaction_number="FT-BRANCH-OWN-001",
+            transaction_type=FinancialTransaction.TransactionType.CREDIT,
+            account=self.account,
+            category=self.other_income_category,
+            amount=Decimal("1200.00"),
+            transaction_date=date(2026, 9, 3),
+            description="Authorized branch income",
+            status=FinancialTransaction.Status.POSTED,
+            source_type=FinancialTransaction.SourceType.MANUAL,
+            branch=self.branch,
+            business_unit=self.business_unit,
+            created_by=branch_user,
+            posted_by=self.finance_user,
+            posted_at=timezone.now(),
+        )
+
+        other_account = FinancialAccount.objects.create(
+            name="Finance Restricted Branch Account",
+            code="FIN-OTHER-BRANCH",
+            account_type=FinancialAccount.AccountType.BANK,
+            business_unit=self.business_unit,
+            branch=other_branch,
+            is_active=True,
+        )
+
+        FinancialTransaction.objects.create(
+            transaction_number="FT-BRANCH-OTHER-001",
+            transaction_type=FinancialTransaction.TransactionType.CREDIT,
+            account=other_account,
+            category=self.other_income_category,
+            amount=Decimal("9900.00"),
+            transaction_date=date(2026, 9, 3),
+            description="Restricted branch income",
+            status=FinancialTransaction.Status.POSTED,
+            source_type=FinancialTransaction.SourceType.MANUAL,
+            branch=other_branch,
+            business_unit=self.business_unit,
+            created_by=self.finance_user,
+            posted_by=self.finance_user,
+            posted_at=timezone.now(),
+        )
+
+        self.authenticate(branch_user)
+
+        own_response = self.client.get(
+            "/api/finance/reports/summary/"
+            f"?start_date=2026-09-01&end_date=2026-09-30&branch={self.branch.id}"
+        )
+
+        self.assertEqual(
+            own_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            Decimal(str(own_response.data["income"])),
+            Decimal("1200.00"),
+        )
+
+        other_response = self.client.get(
+            "/api/finance/reports/summary/"
+            f"?start_date=2026-09-01&end_date=2026-09-30&branch={other_branch.id}"
+        )
+
+        self.assertEqual(
+            other_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            Decimal(str(other_response.data["income"])),
+            Decimal("0"),
+        )
+        self.assertEqual(
+            Decimal(str(other_response.data["expenses"])),
+            Decimal("0"),
+        )
+        self.assertEqual(
+            Decimal(str(other_response.data["net"])),
+            Decimal("0"),
+        )
+    def test_business_unit_scoped_user_cannot_read_other_unit_summary(self):
+        other_unit = BusinessUnit.objects.create(
+            trust=self.trust,
+            name="Finance Test Restricted Unit",
+            code="FIN-TEST-OTHER-UNIT",
+            is_active=True,
+        )
+
+        other_branch = Branch.objects.create(
+            name="Finance Restricted Unit Branch",
+            code="FIN-TEST-OTHER-UNIT-BR",
+            business_unit=other_unit,
+            is_active=True,
+        )
+
+        scoped_user = User.objects.create_user(
+            username="finance_business_unit_scope_test",
+            email="finance.business.unit.scope@test.local",
+            password="TestPassword123!",
+        )
+
+        UserRole.objects.create(
+            user=scoped_user,
+            role=self.finance_role,
+            scope_type=UserRole.ScopeType.BUSINESS_UNIT,
+            business_unit=self.business_unit,
+        )
+
+        FinancialTransaction.objects.create(
+            transaction_number="FT-BU-OWN-001",
+            transaction_type=FinancialTransaction.TransactionType.CREDIT,
+            account=self.account,
+            category=self.other_income_category,
+            amount=Decimal("1200.00"),
+            transaction_date=date(2026, 9, 4),
+            description="Authorized business unit income",
+            status=FinancialTransaction.Status.POSTED,
+            source_type=FinancialTransaction.SourceType.MANUAL,
+            branch=self.branch,
+            business_unit=self.business_unit,
+            created_by=scoped_user,
+            posted_by=self.finance_user,
+            posted_at=timezone.now(),
+        )
+
+        other_account = FinancialAccount.objects.create(
+            name="Finance Restricted Unit Account",
+            code="FIN-OTHER-UNIT-ACCOUNT",
+            account_type=FinancialAccount.AccountType.BANK,
+            business_unit=other_unit,
+            branch=other_branch,
+            is_active=True,
+        )
+
+        FinancialTransaction.objects.create(
+            transaction_number="FT-BU-OTHER-001",
+            transaction_type=FinancialTransaction.TransactionType.CREDIT,
+            account=other_account,
+            category=self.other_income_category,
+            amount=Decimal("9900.00"),
+            transaction_date=date(2026, 9, 4),
+            description="Restricted business unit income",
+            status=FinancialTransaction.Status.POSTED,
+            source_type=FinancialTransaction.SourceType.MANUAL,
+            branch=other_branch,
+            business_unit=other_unit,
+            created_by=self.finance_user,
+            posted_by=self.finance_user,
+            posted_at=timezone.now(),
+        )
+
+        self.authenticate(scoped_user)
+
+        own_response = self.client.get(
+            "/api/finance/reports/summary/"
+            f"?start_date=2026-09-01&end_date=2026-09-30"
+            f"&business_unit={self.business_unit.id}"
+        )
+
+        self.assertEqual(
+            own_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            Decimal(str(own_response.data["income"])),
+            Decimal("1200.00"),
+        )
+
+        other_response = self.client.get(
+            "/api/finance/reports/summary/"
+            f"?start_date=2026-09-01&end_date=2026-09-30"
+            f"&business_unit={other_unit.id}"
+        )
+
+        self.assertEqual(
+            other_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            Decimal(str(other_response.data["income"])),
+            Decimal("0"),
+        )
+        self.assertEqual(
+            Decimal(str(other_response.data["expenses"])),
+            Decimal("0"),
+        )
+        self.assertEqual(
+            Decimal(str(other_response.data["net"])),
+            Decimal("0"),
+        )
     def test_admission_financial_summary_endpoint(self):
         self.authenticate(self.finance_user)
 
@@ -1231,3 +1558,205 @@ class FinanceAPITests(APITestCase):
             response.status_code,
             status.HTTP_200_OK,
         )
+
+
+    # ============================================================
+    # FINANCE ORGANIZATIONAL SCOPE REGRESSION TESTS
+    # ============================================================
+
+    def test_branch_scoped_user_cannot_read_other_branch_expense(self):
+        other_branch = Branch.objects.create(
+            name="Finance Expense Restricted Branch",
+            code="FIN-EXP-OTHER",
+            business_unit=self.business_unit,
+            is_active=True,
+        )
+
+        scoped_user = User.objects.create_user(
+            username="finance_expense_branch_scope",
+            email="finance.expense.branch.scope@test.local",
+            password="TestPassword123!",
+        )
+
+        UserRole.objects.create(
+            user=scoped_user,
+            role=self.finance_role,
+            scope_type=UserRole.ScopeType.BRANCH,
+            branch=self.branch,
+        )
+
+        own_expense = Expense.objects.create(
+            category=self.office_expense_category,
+            business_unit=self.business_unit,
+            branch=self.branch,
+            expense_number="TEST-EXP-OWN-BRANCH",
+            description="Authorized branch expense",
+            expense_date=date(2026, 9, 10),
+            amount=Decimal("1200.00"),
+            requested_by=scoped_user,
+        )
+
+        restricted_expense = Expense.objects.create(
+            category=self.office_expense_category,
+            business_unit=self.business_unit,
+            branch=other_branch,
+            expense_number="TEST-EXP-OTHER-BRANCH",
+            description="Restricted branch expense",
+            expense_date=date(2026, 9, 11),
+            amount=Decimal("9900.00"),
+            requested_by=self.finance_user,
+        )
+
+        self.authenticate(scoped_user)
+
+        list_response = self.client.get(
+            "/api/finance/expenses/"
+        )
+
+        self.assertEqual(
+            list_response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        visible_ids = {
+            str(item["id"])
+            for item in list_response.data
+        }
+
+        self.assertIn(str(own_expense.id), visible_ids)
+        self.assertNotIn(str(restricted_expense.id), visible_ids)
+
+        detail_response = self.client.get(
+            f"/api/finance/expenses/{restricted_expense.id}/"
+        )
+
+        self.assertEqual(
+            detail_response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_branch_scoped_user_cannot_read_unverified_university_payable(self):
+        scoped_user = User.objects.create_user(
+            username="finance_payable_branch_scope",
+            email="finance.payable.branch.scope@test.local",
+            password="TestPassword123!",
+        )
+
+        UserRole.objects.create(
+            user=scoped_user,
+            role=self.finance_role,
+            scope_type=UserRole.ScopeType.BRANCH,
+            branch=self.branch,
+        )
+
+        payable = UniversityPayable.objects.create(
+            institution=self.institution,
+            admission=None,
+            description="Unverified organizational payable",
+            amount=Decimal("8500.00"),
+            payable_date=date(2026, 9, 12),
+            created_by=self.finance_user,
+        )
+
+        self.authenticate(scoped_user)
+
+        list_response = self.client.get(
+            "/api/finance/university-payables/"
+        )
+
+        self.assertEqual(
+            list_response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        visible_ids = {
+            str(item["id"])
+            for item in list_response.data
+        }
+
+        self.assertNotIn(str(payable.id), visible_ids)
+
+        detail_response = self.client.get(
+            f"/api/finance/university-payables/{payable.id}/"
+        )
+
+        self.assertEqual(
+            detail_response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_finance_activity_hides_other_branch_expense_activity(self):
+        other_branch = Branch.objects.create(
+            name="Finance Activity Restricted Branch",
+            code="FIN-ACT-OTHER",
+            business_unit=self.business_unit,
+            is_active=True,
+        )
+
+        scoped_user = User.objects.create_user(
+            username="finance_activity_branch_scope",
+            email="finance.activity.branch.scope@test.local",
+            password="TestPassword123!",
+        )
+
+        UserRole.objects.create(
+            user=scoped_user,
+            role=self.finance_role,
+            scope_type=UserRole.ScopeType.BRANCH,
+            branch=self.branch,
+        )
+
+        own_expense = Expense.objects.create(
+            category=self.office_expense_category,
+            business_unit=self.business_unit,
+            branch=self.branch,
+            expense_number="TEST-ACT-OWN-BRANCH",
+            description="Authorized activity expense",
+            expense_date=date(2026, 9, 14),
+            amount=Decimal("1200.00"),
+            requested_by=scoped_user,
+        )
+
+        restricted_expense = Expense.objects.create(
+            category=self.office_expense_category,
+            business_unit=self.business_unit,
+            branch=other_branch,
+            expense_number="TEST-ACT-OTHER-BRANCH",
+            description="Restricted activity expense",
+            expense_date=date(2026, 9, 15),
+            amount=Decimal("9900.00"),
+            requested_by=self.finance_user,
+        )
+
+        own_activity = FinanceActivity.objects.create(
+            activity_type=FinanceActivity.ActivityType.CREATED,
+            expense=own_expense,
+            description="Authorized expense activity",
+            performed_by=scoped_user,
+        )
+
+        restricted_activity = FinanceActivity.objects.create(
+            activity_type=FinanceActivity.ActivityType.CREATED,
+            expense=restricted_expense,
+            description="Restricted expense activity",
+            performed_by=self.finance_user,
+        )
+
+        self.authenticate(scoped_user)
+
+        response = self.client.get(
+            "/api/finance/activities/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        visible_ids = {
+            str(item["id"])
+            for item in response.data
+        }
+
+        self.assertIn(str(own_activity.id), visible_ids)
+        self.assertNotIn(str(restricted_activity.id), visible_ids)

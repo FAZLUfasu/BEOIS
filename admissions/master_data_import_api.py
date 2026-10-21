@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import secrets
 import time
 from pathlib import Path
 
 from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.utils import timezone
 from rest_framework import status
@@ -15,7 +17,26 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from .master_data_import import import_data, read_workbook, validate
-from .permissions import CanManageAdmissions
+from .permissions import CanManageAcademicMasterData
+from .models import AcademicMasterImportClaim
+
+logger = logging.getLogger(__name__)
+
+
+def claim_import_token(token: str) -> bool:
+    """Atomically consume a token across Django workers."""
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    try:
+        with transaction.atomic():
+            AcademicMasterImportClaim.objects.create(
+                token_digest=digest,
+            )
+    except IntegrityError:
+        return False
+
+    return True
+
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 TOKEN_TTL_SECONDS = 30 * 60
@@ -59,7 +80,7 @@ def base_response(report: dict) -> dict:
 
 
 class AcademicMasterImportPreviewView(APIView):
-    permission_classes = [IsAuthenticated, CanManageAdmissions]
+    permission_classes = [IsAuthenticated, CanManageAcademicMasterData]
     parser_classes = [MultiPartParser]
 
     def post(self, request):
@@ -106,7 +127,7 @@ class AcademicMasterImportPreviewView(APIView):
 
 
 class AcademicMasterImportConfirmView(APIView):
-    permission_classes = [IsAuthenticated, CanManageAdmissions]
+    permission_classes = [IsAuthenticated, CanManageAcademicMasterData]
 
     def post(self, request):
         cleanup_staging()
@@ -133,13 +154,29 @@ class AcademicMasterImportConfirmView(APIView):
         if report["requires_warning_acknowledgement"] and not acknowledge:
             return JsonResponse({"detail": "High-severity review warnings must be acknowledged before import.", "report": report}, status=status.HTTP_409_CONFLICT)
 
+        if not claim_import_token(token):
+            return JsonResponse(
+                {
+                    "detail": (
+                        "This import token has already been "
+                        "claimed. Please preview the workbook again."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
         try:
             result = import_data(data)
         except Exception as exc:
             return JsonResponse({"detail": f"Import failed. The transaction was rolled back. {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         finally:
-            workbook_path.unlink(missing_ok=True)
-            meta_path.unlink(missing_ok=True)
+            for staged_path in (workbook_path, meta_path):
+                try:
+                    staged_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.exception(
+                        "Academic master import cleanup failed"
+                    )
 
         return JsonResponse({
             "status": "imported",

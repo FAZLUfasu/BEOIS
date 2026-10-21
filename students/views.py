@@ -161,6 +161,7 @@ class StudentViewSet(ReadOnlyModelViewSet):
         "options",
     ]
 
+
     def get_queryset(self):
         queryset = (
             _scoped_students(self.request.user)

@@ -558,6 +558,13 @@ class AdmissionViewSet(
             return AdmissionListSerializer
 
         return AdmissionDetailSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Admission creation must use the qualified-lead workflow."""
+        return Response(
+            {"detail": "Use the convert-from-lead endpoint to create an admission."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
     # ============================================================
     # QUALIFIED LEAD HANDOFF QUEUE
     # ============================================================
